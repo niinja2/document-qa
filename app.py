@@ -20,7 +20,11 @@ if uploaded_file is not None:
             st.session_state.session_id = session_id
             st.success("Document uploaded successfully.")
         else:
-            st.error(f"Upload failed: {response.json().get('detail', 'Unknown error')}")
+            try:
+                detail = response.json().get("detail", "Unknown error")
+            except Exception:
+                detail = response.text or "Unknown error"
+            st.error(f"Upload failed: {detail}")
 
 if "session_id" in st.session_state:
     question = st.text_input("Ask a question about the document")
@@ -36,4 +40,8 @@ if "session_id" in st.session_state:
             answer = response.json()["answer"]
             st.markdown(f"**Answer:** {answer}")
         else:
-            st.error(f"Error: {response.json().get('detail', 'Unknown error')}")
+            try:
+                detail = response.json().get("detail", "Unknown error")
+            except Exception:
+                detail = response.text or "Unknown error"
+            st.error(f"Error: {detail}")

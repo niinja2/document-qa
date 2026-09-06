@@ -1,11 +1,17 @@
-import os
-import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).parent.parent / ".env")
 
+import os
+import logging
 from fastapi import FastAPI, UploadFile, Form, HTTPException
+
+from ingestion import extractor
+from session import store
+from llm import backend
+from pipeline import chunker, embedder, retriever
+import faiss
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,11 +22,15 @@ logging.basicConfig(
     ],
 )
 
-from ingestion import extractor
-from session import store
-from llm import backend
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+
+@app.on_event("startup")
+async def warm_up():
+    embedder.embed(["warmup"])
+    logger.info("Embedding model warmed up")
 
 
 @app.post("/upload")
@@ -41,7 +51,15 @@ async def upload(
     if not text.strip():
         raise HTTPException(status_code=422, detail="Could not extract text from file")
 
-    store.save(session_id, text)
+    chunks = chunker.chunk_text(text)
+    embeddings = embedder.embed(chunks)
+
+    dimension = embeddings.shape[1]
+    index = faiss.IndexFlatIP(dimension)
+    index.add(embeddings)
+
+    store.save(session_id, chunks, index)
+    logger.info("Uploaded session %s: %d chunks", session_id, len(chunks))
     return {"status": "ok"}
 
 
@@ -50,10 +68,16 @@ async def ask(
     session_id: str = Form(...),
     question: str = Form(...),
 ):
-    text = store.load(session_id)
+    session = store.load(session_id)
 
-    if text is None:
+    if session is None:
         raise HTTPException(status_code=404, detail="Session not found. Upload a document first.")
 
-    result = backend.answer(text, question)
+    chunks = session["chunks"]
+    index = session["index"]
+
+    top_chunks = retriever.retrieve(question, index, chunks)
+    context = "\n\n".join(top_chunks)
+
+    result = backend.answer(context, question)
     return {"answer": result}

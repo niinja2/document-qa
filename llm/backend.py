@@ -6,7 +6,7 @@ from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 
 logger = logging.getLogger(__name__)
 
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "mistralai/mistral-small-24b")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
 
 _qa_tokenizer = None
 _qa_model = None
