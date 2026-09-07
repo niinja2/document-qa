@@ -1,9 +1,11 @@
+import logging
 import pymupdf as fitz
 import easyocr
 import numpy as np
 from PIL import Image
 import io
 
+logger = logging.getLogger(__name__)
 
 _ocr_reader = None
 
@@ -52,9 +54,11 @@ def extract_image(file_path: str) -> str:
 def extract(file_path: str) -> str:
     path = file_path.lower()
     if path.endswith(".pdf"):
-        return extract_pdf(file_path)
+        text = extract_pdf(file_path)
     elif path.endswith((".png", ".jpg", ".jpeg", ".tiff", ".bmp")):
-        return extract_image(file_path)
+        text = extract_image(file_path)
     else:
         raise ValueError(f"Unsupported file type: {file_path}")
+    logger.info("Extracted %d characters from %s", len(text), file_path)
+    return text
 

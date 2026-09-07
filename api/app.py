@@ -5,6 +5,9 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 import os
 import logging
+from contextlib import asynccontextmanager
+from pythonjsonlogger.json import JsonFormatter
+import numpy as np
 from fastapi import FastAPI, UploadFile, Form, HTTPException
 
 from ingestion import extractor
@@ -13,53 +16,64 @@ from llm import backend
 from pipeline import chunker, embedder, retriever
 import faiss
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(name)s %(levelname)s %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("app.log"),
-    ],
-)
+json_formatter = JsonFormatter("%(asctime)s %(name)s %(levelname)s %(message)s")
+
+_stream_handler = logging.StreamHandler()
+_stream_handler.setFormatter(json_formatter)
+
+_file_handler = logging.FileHandler("app.log")
+_file_handler.setFormatter(json_formatter)
+
+logging.basicConfig(level=logging.INFO, handlers=[_stream_handler, _file_handler])
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
 
-
-@app.on_event("startup")
-async def warm_up():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     embedder.embed(["warmup"])
     logger.info("Embedding model warmed up")
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/upload")
 async def upload(
-    file: UploadFile,
+    files: list[UploadFile],
     session_id: str = Form(...),
 ):
-    suffix = Path(file.filename).suffix
-    tmp_path = f"/tmp/{session_id}{suffix}"
+    all_chunks = []
+    all_embeddings = []
 
-    contents = await file.read()
-    with open(tmp_path, "wb") as f:
-        f.write(contents)
+    for file in files:
+        suffix = Path(file.filename).suffix
+        tmp_path = f"/tmp/{session_id}_{file.filename}{suffix}"
 
-    text = extractor.extract(tmp_path)
-    os.remove(tmp_path)
+        contents = await file.read()
+        with open(tmp_path, "wb") as f:
+            f.write(contents)
 
-    if not text.strip():
-        raise HTTPException(status_code=422, detail="Could not extract text from file")
+        text = extractor.extract(tmp_path)
+        os.remove(tmp_path)
 
-    chunks = chunker.chunk_text(text)
-    embeddings = embedder.embed(chunks)
+        if not text.strip():
+            raise HTTPException(status_code=422, detail=f"Could not extract text from {file.filename}")
 
-    dimension = embeddings.shape[1]
+        chunks = chunker.chunk_text(text)
+        embeddings = embedder.embed(chunks)
+
+        all_chunks.extend(chunks)
+        all_embeddings.append(embeddings)
+
+    combined = np.vstack(all_embeddings)
+    dimension = combined.shape[1]
     index = faiss.IndexFlatIP(dimension)
-    index.add(embeddings)
+    index.add(combined)
 
-    store.save(session_id, chunks, index)
-    logger.info("Uploaded session %s: %d chunks", session_id, len(chunks))
+    store.save(session_id, all_chunks, index)
+    logger.info("Uploaded session %s: %d files, %d chunks", session_id, len(files), len(all_chunks))
     return {"status": "ok"}
 
 
