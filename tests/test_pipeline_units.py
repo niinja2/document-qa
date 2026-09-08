@@ -79,9 +79,8 @@ class TestExtractor:
 
 # ── CAT-10: Chunker ───────────────────────────────────────────────────────────
 
-CHUNK_SIZE    = 500   # words — from config.py
-CHUNK_OVERLAP = 50    # words
-CHUNK_STEP    = CHUNK_SIZE - CHUNK_OVERLAP  # 450 — new chunk starts every 450 words
+from config import CHUNK_SIZE, CHUNK_OVERLAP
+CHUNK_STEP = CHUNK_SIZE - CHUNK_OVERLAP
 
 
 def make_text(n_words: int) -> str:
@@ -243,8 +242,15 @@ class TestRetriever:
         assert len(results) <= len(chunks)
 
     def test_retrieve_most_similar_first(self, small_index_and_chunks):
-        """Alpha query → Alpha chunk should be in results."""
+        """Top-1 result must be the semantically closest chunk (Alpha query → Alpha chunk).
+
+        3 chunks with distinct topics; querying the exact text of chunk[0] must
+        return it as rank-1. This is the core RAG quality check.
+        """
         index, chunks = small_index_and_chunks
         results = self.retrieve("Alpha content about retrieval", index, chunks)
+        assert len(results) > 0, "retrieve() returned empty list"
         top_text = results[0]["text"]
-        assert "Alpha" in top_text, f"Expected Alpha chunk first, got: {top_text!r}"
+        assert "Alpha" in top_text, (
+            f"Expected Alpha chunk as top-1 result, got: {top_text!r}"
+        )

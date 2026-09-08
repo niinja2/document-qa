@@ -3,15 +3,25 @@ Shared fixtures for Document QA test suite.
 
 Assumptions (spec-only, no code read):
   - FastAPI server at http://localhost:8000
-  - POST /upload  multipart/form-data  fields: files (one or more), session_id (str)
+  - POST /upload  multipart/form-data  fields: file, session_id (str)
   - POST /ask     form-data            fields: session_id (str), question (str)
   - Success responses: JSON with at least {"answer": str} on /ask
 """
 import io
+import os
+import sys
 import uuid
 
 import pytest
 import httpx
+
+# Load .env so unit tests that import config.py see the same values as the server.
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+except ImportError:
+    pass  # python-dotenv not installed — config.py falls back to its own defaults
 
 BASE_URL = "http://localhost:8000"
 

@@ -88,8 +88,8 @@ class TestFileCount:
         r = upload_file(client, session_id, text_pdf_bytes, "a.pdf")
         assert r.status_code == 200
 
-    def test_T009_sequential_uploads_same_session(self, client, session_id, text_pdf_bytes, text_png_bytes):
-        """T009 — Two sequential single-file uploads to same session → both 200."""
+    def test_T009_sequential_uploads_last_wins(self, client, session_id, text_pdf_bytes, text_png_bytes):
+        """T009 — Two sequential uploads to same session → both 200; second replaces first."""
         r1 = upload_file(client, session_id, text_pdf_bytes, "a.pdf")
         r2 = upload_file(client, session_id, text_png_bytes, "b.png", "image/png")
         assert r1.status_code == 200
@@ -129,7 +129,7 @@ class TestSessionUUID:
         try:
             r = client.post(
                 "/upload",
-                files={"files": ("a.pdf", io.BytesIO(text_pdf_bytes), "application/pdf")},
+                files={"file": ("a.pdf", io.BytesIO(text_pdf_bytes), "application/pdf")},
             )
             assert r.status_code == 422, (
                 f"Expected 422 for missing session_id, got {r.status_code}"
@@ -175,18 +175,21 @@ class TestMutations:
     # ── File content/extension mismatch ──
 
     def test_MUT01_pdf_extension_image_bytes(self, client, session_id, text_png_bytes):
-        """MUT01 — PNG bytes sent with .pdf filename → server validates by content, not extension.
+        """MUT01 — PNG bytes sent with .pdf filename → no 500 regardless of validation strategy.
 
-        If the server checks extension only: accepts (wrong). If it checks magic bytes: rejects.
-        Either way it must not 500.
+        Weak assertion ("not 500") is intentional: the server routes by extension, so
+        PNG bytes with .pdf extension go through the PDF path. Whether it returns 200
+        (with empty/garbage text) or 4xx is unspecified — the key check is no crash.
         """
         r = upload_file(client, session_id, text_png_bytes, "fake.pdf", "application/pdf")
         assert r.status_code != 500
 
     def test_MUT02_image_extension_pdf_bytes(self, client, session_id, text_pdf_bytes):
-        """MUT02 — PDF bytes sent with .png filename → server validates by content, not extension.
+        """MUT02 — PDF bytes sent with .png filename → no 500 regardless of validation strategy.
 
-        Must not crash regardless of which validation strategy the server uses.
+        Server routes by extension (.png → OCR path). EasyOCR on PDF bytes may produce
+        garbage text and return 200, or it may return 4xx — either is acceptable.
+        Known issue: server previously 500'd on this path; "not 500" is the regression guard.
         """
         r = upload_file(client, session_id, text_pdf_bytes, "fake.png", "image/png")
         assert r.status_code != 500

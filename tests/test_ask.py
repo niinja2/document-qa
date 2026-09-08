@@ -70,7 +70,12 @@ class TestQuestionDimension:
         assert r.status_code != 500
 
     def test_T028_question_about_missing_content(self, client):
-        """T028 — Question about content not in document → 200, LLM responds gracefully."""
+        """T028 — Question about content not in document → 200, LLM responds gracefully.
+
+        Note: we only assert 200 + 'answer' key — not what the answer says. A live LLM
+        may phrase "not found" differently across models/versions. A substring assertion
+        ("not found", "unable to") would be more precise but fragile across LLM providers.
+        """
         r = ask(client, self.sid, "What is the GDP of Mars in 2083?")
         assert r.status_code == 200
         assert "answer" in r.json()
@@ -79,10 +84,7 @@ class TestQuestionDimension:
         """T029 — SQL injection payload → treated as plain text, no crash."""
         r = ask(client, self.sid, "'; DROP TABLE sessions; --")
         assert r.status_code == 200
-        data = r.json()
-        assert "answer" in data
-        # The injection string must not cause a 500
-        assert r.status_code != 500
+        assert "answer" in r.json()
 
     def test_T030_xss_payload_in_question(self, client):
         """T030 — XSS payload → returned as text/escaped, not executed."""

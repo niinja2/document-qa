@@ -21,8 +21,8 @@ DUMMY_INDEX  = object()  # placeholder for a FAISS index
 
 class TestSessionStore:
 
-    def test_T046_save_then_load_returns_same_data(self):
-        """T046 — save then load → dict with same chunks and index."""
+    def test_TS01_save_then_load_returns_same_data(self):
+        """TS01 — save then load → dict with same chunks and index."""
         sid = str(uuid.uuid4())
         save(sid, DUMMY_CHUNKS, DUMMY_INDEX)
         result = load(sid)
@@ -30,8 +30,8 @@ class TestSessionStore:
         assert result["chunks"] is DUMMY_CHUNKS
         assert result["index"] is DUMMY_INDEX
 
-    def test_T047_load_unknown_uuid(self):
-        """T047 — load(never-saved UUID) → None (not a KeyError crash)."""
+    def test_TS02_load_unknown_uuid(self):
+        """TS02 — load(never-saved UUID) → None (not a KeyError crash)."""
         sid = str(uuid.uuid4())
         try:
             result = load(sid)
@@ -39,8 +39,8 @@ class TestSessionStore:
         except KeyError:
             pytest.fail("store.load raised raw KeyError — should return None")
 
-    def test_T048_overwrite_same_uuid(self):
-        """T048 — save twice with same UUID → second save replaces first."""
+    def test_TS03_overwrite_same_uuid(self):
+        """TS03 — save twice with same UUID → second save replaces first."""
         sid = str(uuid.uuid4())
         chunks_v1 = [{"text": "old", "doc_id": "a.pdf"}]
         chunks_v2 = [{"text": "new", "doc_id": "b.pdf"}]
