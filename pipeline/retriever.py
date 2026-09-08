@@ -8,10 +8,10 @@ logger = logging.getLogger(__name__)
 def retrieve(
     question: str,
     index,
-    chunks: list[str],
-) -> list[str]:
+    chunks: list[dict],
+) -> list[dict]:
     question_embedding = embed([question])
-    distances, indices = index.search(question_embedding, TOP_K)
+    distances, indices = index.search(question_embedding, min(TOP_K, len(chunks)))
     # eg indices = [[3, 7, 1, 0, 5]] , indices[0] = [3, 7, 1, 0, 5]
     hit_positions = []
     for i in indices[0]:

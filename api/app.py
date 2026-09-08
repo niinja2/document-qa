@@ -7,7 +7,6 @@ import os
 import logging
 from contextlib import asynccontextmanager
 from pythonjsonlogger.json import JsonFormatter
-import numpy as np
 from fastapi import FastAPI, UploadFile, Form, HTTPException
 
 from ingestion import extractor
@@ -41,39 +40,42 @@ app = FastAPI(lifespan=lifespan)
 
 @app.post("/upload")
 async def upload(
-    files: list[UploadFile],
+    file: UploadFile,
     session_id: str = Form(...),
 ):
-    all_chunks = []
-    all_embeddings = []
+    suffix = Path(file.filename).suffix
+    tmp_path = f"/tmp/{session_id}{suffix}"
 
-    for file in files:
-        suffix = Path(file.filename).suffix
-        tmp_path = f"/tmp/{session_id}_{file.filename}{suffix}"
+    contents = await file.read()
 
-        contents = await file.read()
-        with open(tmp_path, "wb") as f:
-            f.write(contents)
+    if len(contents) < 100:
+        raise HTTPException(status_code=422, detail="File is too small or empty")
 
+    with open(tmp_path, "wb") as f:
+        f.write(contents)
+
+    try:
         text = extractor.extract(tmp_path)
+    except Exception as e:
         os.remove(tmp_path)
+        raise HTTPException(status_code=422, detail=str(e))
 
-        if not text.strip():
-            raise HTTPException(status_code=422, detail=f"Could not extract text from {file.filename}")
+    os.remove(tmp_path)
 
-        chunks = chunker.chunk_text(text)
-        embeddings = embedder.embed(chunks)
+    if not text.strip():
+        raise HTTPException(status_code=422, detail=f"Could not extract text from {file.filename}")
 
-        all_chunks.extend(chunks)
-        all_embeddings.append(embeddings)
+    chunks = chunker.chunk_text(text)
+    embeddings = embedder.embed(chunks)
 
-    combined = np.vstack(all_embeddings)
-    dimension = combined.shape[1]
+    tagged_chunks = [{"text": chunk, "doc_id": file.filename} for chunk in chunks]
+
+    dimension = embeddings.shape[1]
     index = faiss.IndexFlatIP(dimension)
-    index.add(combined)
+    index.add(embeddings)
 
-    store.save(session_id, all_chunks, index)
-    logger.info("Uploaded session %s: %d files, %d chunks", session_id, len(files), len(all_chunks))
+    store.save(session_id, tagged_chunks, index)
+    logger.info("Uploaded session %s: %d chunks", session_id, len(tagged_chunks))
     return {"status": "ok"}
 
 
@@ -91,7 +93,8 @@ async def ask(
     index = session["index"]
 
     top_chunks = retriever.retrieve(question, index, chunks)
-    context = "\n\n".join(top_chunks)
+    context_parts = [f"[{c['doc_id']}]\n{c['text']}" for c in top_chunks]
+    context = "\n\n".join(context_parts)
 
     result = backend.answer(context, question)
     return {"answer": result}

@@ -21,7 +21,15 @@ def _get_qa_model():
 
 
 def _answer_openrouter(text: str, question: str, api_key: str) -> str:
-    prompt = f"Document:\n{text}\n\nQuestion: {question}"
+    prompt = (
+        f"The following are excerpts from one or more documents. "
+        f"Each excerpt is labeled with its source file in brackets.\n\n"
+        f"{text}\n\n"
+        f"Answer the question using only the information in the excerpts above. "
+        f"Be concise. At the end of your answer, state which document(s) you used.\n"
+        f"If the answer cannot be found in the excerpts, say so explicitly.\n\n"
+        f"Question: {question}"
+    )
 
     payload = {
         "model": OPENROUTER_MODEL,

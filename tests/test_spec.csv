@@ -1,0 +1,70 @@
+ID,Category,Description,Input,Expected,Outcome
+T001,/upload,PDF with selectable text,"file=sample.pdf (text layer), valid UUID",200 · text extracted,PASS
+T002,/upload,PNG with printed text — EasyOCR path,"file=text.png, valid UUID",200 · OCR applied,PASS
+T003,/upload,JPG with printed text — EasyOCR path,"file=text.jpg, valid UUID",200 · OCR applied,PASS
+T004,/upload,Unsupported: .exe binary,file=binary.exe,4xx · unsupported type,PASS
+T005,/upload,Unsupported: .docx,file=doc.docx,422 · unsupported type,PASS
+T006,/upload,Unsupported: .csv,file=data.csv,4xx · unsupported type,PASS
+T007,/upload,No file field in multipart,session_id only no file,422 · validation error,PASS
+T008,/upload,Single file upload,file=a.pdf,200 · doc indexed,PASS
+T009,/upload,Two sequential uploads same session,"upload a.pdf then b.png, same UUID",Both 200 · session accumulates,PASS
+T010,/upload,Five sequential uploads same session,"5x upload, same UUID",All 200 · no crash,PASS
+T011,/upload,Empty file (0 bytes),file=empty.pdf (0 B),422 · size guard fires before PyMuPDF,PASS
+T012,/upload,Corrupt 1-byte file,"file=corrupt.pdf (1 B, 0x00)",422 · size guard fires before PyMuPDF,PASS
+T013,/upload,Normal size PDF,file=normal.pdf (~few KB),200 · processed,PASS
+T016,/upload,No session_id field,multipart with no session_id key,422 · validation error,PASS
+T017,/upload,Empty string session_id,session_id="",4xx · rejected,PASS
+T018,/upload,Well-formed UUID v4,session_id=<uuid4>,200 · session stored,PASS
+T019,/upload,Malformed session_id string,session_id="not-a-uuid",behaviour unspecified — not 500,CLARIFY
+T020,/upload,Re-upload to same session UUID,"same UUID, different file x2",200 both times · no 409,PASS
+T021,/ask,Ask before any upload,session_id=fresh-uuid,404 · session not found,PASS
+T022,/ask,No session_id field,question only no session_id,422 · validation error,PASS
+T023,/ask,Ask after successful upload,same UUID as prior upload,200 · non-empty answer string,PASS
+T024,/ask,Empty string question,question="",4xx or graceful — not 500,CLARIFY
+T025,/ask,Whitespace-only question,"question=""   \t  """,4xx or treated as empty — not 500,CLARIFY
+T026,/ask,Normal question about document content,question="What is the main topic?",200 · non-empty answer,PASS
+T027,/ask,Very long question (>2000 chars),2400-char question string,200 or 4xx — not 500,BOUNDARY
+T028,/ask,Question about content not in document,question="GDP of Mars in 2083?",200 · LLM says not found,PASS
+T029,/ask,SQL injection in question,"question=""'; DROP TABLE sessions; --""",200 · treated as plain text,PASS
+T030,/ask,XSS payload in question,question="<script>alert(1)</script>",200 · returned as escaped JSON string,PASS
+T031,Integration,PDF upload then relevant answer,upload text-PDF then ask about content,200 · answer references PDF terms,PASS
+T032,Integration,Image upload then OCR then answer,upload text-PNG then ask about printed text,200 · answer reflects OCR'd text,PASS
+T033,Integration,Two sequential uploads then ask,upload PDF then upload PNG then ask,200 · index covers both uploads,PASS
+T034,Integration,Session isolation — two sessions,session A asks about session B's unique term,A's answer does not mention B's content,PASS
+T035,Integration,3 sequential questions same session,upload then ask 3 different questions,All 200 · no state bleed,PASS
+T036,Integration,Session lost after server restart,fresh UUID then ask (simulates post-restart),4xx · RAM store not persistent,PASS
+T037,Integration,Concurrent uploads different sessions,2 threads upload simultaneously,Both 200 · no data mixing,PASS
+T038,Integration,DistilBERT fallback — no OpenRouter key,OPENROUTER_API_KEY unset then upload then ask,200 · DistilBERT answer returned,PASS
+TC01,Cascade,Good index then empty upload then ask (index survives),upload PDF then upload empty.pdf then ask,200 · index not wiped by failed upload,PASS
+TC02,Cascade,Good index then unsupported upload then ask (index survives),upload PDF then upload .docx then ask,200 · rejected file does not corrupt index,PASS
+TC03,Cascade,Upload then re-upload then ask (index updated),upload PDF then upload different PDF then ask,200 · ask reflects updated content,PASS
+TC04,Cascade,Image (OCR) then PDF upload then ask (mixed-type session),upload PNG then upload PDF then ask,200 · ask works across both content types,PASS
+TC05,Cascade,Failed upload then recovery upload then ask,upload empty.pdf (422) then upload valid PDF then ask,200 · session recovers after initial failure,PASS
+TC06,Cascade,Ask (404) then upload then ask (no broken state),ask on fresh UUID (404) then upload then ask,200 · earlier 404 left no broken state,PASS
+TC07,Cascade,Mixed-type session then off-topic question,upload PDF + PNG then ask about Mars GDP,200 · LLM says not found across both docs,PASS
+MUT01,Mutation,PNG bytes sent with .pdf filename,"PNG bytes, filename=fake.pdf, content-type=application/pdf",No 500 — reveals if server validates by extension or magic bytes,PASS
+MUT02,Mutation,PDF bytes sent with .png filename,"PDF bytes, filename=fake.png, content-type=image/png",No 500 — reveals if server validates by extension or magic bytes,PASS
+MUT03,Mutation,Valid PDF bytes but Content-Type claims image/png,"PDF bytes, correct filename, wrong content-type",No 500 — reveals if server trusts Content-Type or inspects bytes,PASS
+MUT04,Mutation,Valid %PDF header but truncated body,"%PDF-1.4 + garbage bytes (>4B passes size guard)",422 · extraction fails gracefully,PASS
+MUT05,Mutation,UUID with uppercase hex letters,session_id=<UUID4>.upper(),No 500 — UUIDs are case-insensitive,PASS
+MUT06,Mutation,UUID with extra characters appended,session_id=<uuid4>EXTRA,4xx or accepted — not 500,PASS
+MUT07,Mutation,Duplicate session_id fields in multipart,Two session_id values in same request,No 500 — FastAPI takes first or last value,PASS
+MUT08,Mutation,Null byte embedded in question,question="question\x00injection",No 500 — treated as string,PASS
+MUT09,Mutation,Unicode control characters in question,question with \x00 \x1f and zero-width space,No 500,PASS
+MUT10,Mutation,Right-to-left Unicode question (Arabic),question="ما هو موضوع هذه الوثيقة؟",No 500,PASS
+MUT11,Mutation,Numbers and symbols only question,question="42 + 3.14 = ???",No 500,PASS
+MUT12,Mutation,Extra unexpected field in upload multipart,"session_id, file, unexpected_field=surprise",No 500 — extra field ignored or rejected,PASS
+T039,Rate Limit,Single request — within limit,1 POST /ask,200 · not throttled,PASS
+T040,Rate Limit,Burst above rate limit,N+1 rapid requests within window,429 on burst,SKIP
+T041,Rate Limit,Recovery after cooldown,burst then wait window then 1 more request,200 · limit reset,SKIP
+T042,Unit,Extractor: PDF text layer → PyMuPDF,extract_pdf(text_pdf),str · len > 0,PASS
+T043,Unit,Extractor: blank PDF — no text,extract_pdf(blank_pdf),empty string or known exception — not crash,CLARIFY
+T044,Unit,Extractor: PNG image → EasyOCR,extract_image(text.png),str · len > 0,PASS
+T046,Unit,Chunker: empty string,chunk_text(""),[] — no crash,PASS
+T047,Unit,Chunker: 449 words (below CHUNK_STEP),449 words,1 chunk,PASS
+T048,Unit,Chunker: 450 words (at CHUNK_STEP boundary),450 words,1 chunk,PASS
+T049,Unit,Chunker: 451 words (one over boundary),451 words,2 chunks · chunk[1] starts at word450,BOUNDARY
+T050,Unit,Chunker: 10000 words — chunk count,10000 words,ceil((10000-50)/450) = 22 chunks,PASS
+TS01,Unit,Store: save then load returns same data,"save(sid, chunks, index) then load(sid)",dict with same chunks and index objects,PASS
+TS02,Unit,Store: load unknown UUID returns None,load(never-saved-uuid),None — not KeyError crash,PASS
+TS03,Unit,Store: overwrite same UUID,save twice with same UUID,second save replaces first,PASS
