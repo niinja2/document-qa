@@ -1,8 +1,7 @@
 import uuid
 import requests
 import streamlit as st
-
-API_URL = "http://localhost:8000"
+from config import API_URL
 
 st.title("Document QA")
 
@@ -31,8 +30,11 @@ if uploaded_file is not None:
             st.error(f"Upload failed: {detail}")
 
 if "session_id" in st.session_state:
-    question = st.text_input("Ask a question about the document")
-    if st.button("Ask") and question:
+    with st.form("ask_form"):
+        question = st.text_input("Ask a question about the document")
+        submitted = st.form_submit_button("Ask")
+
+    if submitted and question:
         with st.spinner("Thinking..."):
             response = requests.post(
                 f"{API_URL}/ask",

@@ -1,0 +1,140 @@
+/upload
+─────────────────────────────────────────────────────
+Streamlit ──(file + UUID)──▶ FastAPI ──▶ extractor.py
+                                              │
+                                         extracted text
+                                              │
+                                         store.py (RAM dict)
+                                         save(UUID, text)
+                             FastAPI ◀── "ok"
+Streamlit ◀── "upload done"
+
+
+/ask
+─────────────────────────────────────────────────────
+Streamlit ──(question + UUID)──▶ FastAPI
+                                    │
+                               store.py
+                               load(UUID) → text
+                                    │
+                               llm/backend.py
+                               text + question
+                                    │
+                          OpenRouter API (or DistilBERT)
+                                    │
+                                 answer
+                                    │
+Streamlit ◀── answer ◀─────── FastAPI
+
+
+
+/upload
+Streamlit
+    │ file + UUID
+FastAPI
+    │
+extractor.py (PyMuPDF / EasyOCR)
+    │ text
+store.py → save(UUID, text)
+    │
+FastAPI → "ok"
+    │
+Streamlit → "upload done"
+
+
+/ask
+Streamlit
+    │ question + UUID
+FastAPI
+    │
+store.py → load(UUID) → text
+    │
+llm/backend.py
+    │ text + question
+OpenRouter / DistilBERT
+    │ answer
+FastAPI
+    │
+Streamlit → displays answer
+
+
+edge cases handled:
+- no UUID yet → error "upload first"
+- unsupported file type → error
+- empty text after extraction → error
+- file too large → size check before processing
+- rate limiting via slowapi → HTTP 429 if over limit
+
+
+
+extractor.py(file_path)
+    │
+    ├── .pdf → extract_pdf(file_path)
+    │               │
+    │               for each page:
+    │                   get_text() → page text
+    │                   for each image in page:
+    │                       extract_image bytes
+    │                       _ocr_from_bytes() → image text
+    │               return all text joined
+    │
+    └── .png/.jpg/etc → extract_image(file_path)
+                            EasyOCR → text
+                            return text
+							
+							
+							
+							
+							
+Document QA — Implementation Specification
+
+Architecture
+
+Two-process system: FastAPI backend + Streamlit frontend, communicating over HTTP.
+
+Backend — api/app.py
+
+POST /upload — accepts one or more files + a session UUID (multipart form). For each file: saves to temp, extracts text, removes temp file. Chunks all text, embeds all chunks, merges into one FAISS index, stores in RAM.
+POST /ask — accepts session UUID + question (form). Embeds question, retrieves top-5 chunks via FAISS, sends context to LLM, returns answer.
+Startup warmup — embedding model pre-loaded on server start via lifespan.
+JSON structured logging to terminal and app.log.
+
+Text Extraction — ingestion/extractor.py
+
+PDF: PyMuPDF for text, EasyOCR for embedded images
+Images: EasyOCR
+Lazy-loaded OCR reader (loaded on first use)
+
+RAG Pipeline — pipeline/
+
+chunker.py — splits text into 500-word chunks with 50-word overlap
+embedder.py — BGE-base-en-v1.5 (768-dim), lazy-loaded, normalized embeddings
+retriever.py — FAISS IndexFlatIP cosine search, returns top-5 chunks
+
+Session Storage — session/store.py
+
+RAM dict keyed by session UUID
+Stores chunks (text) + FAISS index per session
+No persistence, cleared on server restart
+
+LLM — llm/backend.py
+
+Primary: OpenRouter (model configured via OPENROUTER_MODEL in .env)
+Fallback: DistilBERT local QA model (when no API key present)
+Model and key read fresh per request from env
+
+Frontend — app.py
+
+Streamlit
+Multi-file uploader with Upload button
+Spinner on upload and on ask
+Session UUID generated client-side, sent with every request
+
+Config — config.py
+
+CHUNK_SIZE    = 500
+CHUNK_OVERLAP = 50
+EMBEDDING_MODEL = BAAI/bge-base-en-v1.5
+TOP_K         = 5
+
+Not implemented: Docker, rate limiting, persistence, auth, NER, Redis caching

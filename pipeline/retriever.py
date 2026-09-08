@@ -1,6 +1,6 @@
 import logging
 from pipeline.embedder import embed
-from config import TOP_K
+from config import TOP_K, RETRIEVAL_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
@@ -12,10 +12,10 @@ def retrieve(
 ) -> list[dict]:
     question_embedding = embed([question])
     distances, indices = index.search(question_embedding, min(TOP_K, len(chunks)))
-    # eg indices = [[3, 7, 1, 0, 5]] , indices[0] = [3, 7, 1, 0, 5]
+    # indices = [[3, 7, 1, 0, 5]], distances = [[0.91, 0.74, ...]]
     hit_positions = []
-    for i in indices[0]:
-        if i >= 0:  # FAISS returns -1 for empty slots when index has fewer items than TOP_K
+    for score, i in zip(distances[0], indices[0]):
+        if i >= 0 and score >= RETRIEVAL_THRESHOLD:
             hit_positions.append(i)
     top_chunks = []
     for i in hit_positions:

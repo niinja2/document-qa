@@ -1,0 +1,35 @@
+Here are all the files for the handover:
+
+Specification
+
+ASSIGNMENT.md
+SPEC.md
+
+Source code
+
+api/app.py
+config.py
+ingestion/extractor.py
+pipeline/chunker.py
+pipeline/embedder.py
+pipeline/retriever.py
+llm/backend.py
+session/store.py
+app.py
+
+Config
+
+.env.example
+requirements.txt
+
+Tests
+
+tests/README.md
+tests/test_spec.csv
+tests/conftest.py
+tests/test_upload.py
+tests/test_ask.py
+tests/test_integration.py
+tests/test_pipeline_units.py
+tests/test_store.py
+tests/test_z_rate_limit.py

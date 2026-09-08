@@ -1,4 +1,5 @@
 import os
+import threading
 import logging
 import requests
 import torch
@@ -6,43 +7,43 @@ from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 
 logger = logging.getLogger(__name__)
 
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
-
 _qa_tokenizer = None
 _qa_model = None
+_qa_lock = threading.Lock()
 
 
 def _get_qa_model():
     global _qa_tokenizer, _qa_model
     if _qa_model is None:
-        _qa_tokenizer = AutoTokenizer.from_pretrained("distilbert-base-cased-distilled-squad")
-        _qa_model = AutoModelForQuestionAnswering.from_pretrained("distilbert-base-cased-distilled-squad")
+        with _qa_lock:
+            if _qa_model is None:
+                _qa_tokenizer = AutoTokenizer.from_pretrained("distilbert-base-cased-distilled-squad")
+                _qa_model = AutoModelForQuestionAnswering.from_pretrained("distilbert-base-cased-distilled-squad")
     return _qa_tokenizer, _qa_model
 
 
-def _answer_openrouter(text: str, question: str, api_key: str) -> str:
+def _answer_openrouter(text: str, question: str, api_key: str, model: str) -> str:
     prompt = (
         f"The following are excerpts from one or more documents. "
         f"Each excerpt is labeled with its source file in brackets.\n\n"
         f"{text}\n\n"
         f"Answer the question using only the information in the excerpts above. "
-        f"Be concise. At the end of your answer, state which document(s) you used.\n"
+        f"Be concise. "
         f"If the answer cannot be found in the excerpts, say so explicitly.\n\n"
         f"Question: {question}"
     )
-
     payload = {
-        "model": OPENROUTER_MODEL,
+        "model": model,
         "messages": [{"role": "user", "content": prompt}],
     }
     headers = {"Authorization": f"Bearer {api_key}"}
-
     response = requests.post(
         "https://openrouter.ai/api/v1/chat/completions",
         headers=headers,
         json=payload,
+        timeout=(5, 60),
     )
-
+    response.raise_for_status()
     data = response.json()
     if "choices" not in data:
         logger.error("OpenRouter error: %s", data)
@@ -65,9 +66,10 @@ def _answer_distilbert(text: str, question: str) -> str:
 
 def answer(text: str, question: str) -> str:
     api_key = os.getenv("OPENROUTER_API_KEY")
-    if api_key:
-        logger.info("Using OpenRouter (%s)", OPENROUTER_MODEL)
-        return _answer_openrouter(text, question, api_key)
+    model = os.getenv("OPENROUTER_MODEL")
+    if api_key and model:
+        logger.info("Using OpenRouter (%s)", model)
+        return _answer_openrouter(text, question, api_key, model)
     else:
         logger.info("Using DistilBERT")
         return _answer_distilbert(text, question)

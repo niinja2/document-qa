@@ -4,11 +4,16 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 import os
+import tempfile
 import logging
 from contextlib import asynccontextmanager
 from pythonjsonlogger.json import JsonFormatter
-from fastapi import FastAPI, UploadFile, Form, HTTPException
+from fastapi import FastAPI, UploadFile, Form, HTTPException, Request
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
+from config import RATE_LIMIT_UPLOAD, RATE_LIMIT_ASK, MAX_FILE_SIZE_MB
 from ingestion import extractor
 from session import store
 from llm import backend
@@ -23,9 +28,11 @@ _stream_handler.setFormatter(json_formatter)
 _file_handler = logging.FileHandler("app.log")
 _file_handler.setFormatter(json_formatter)
 
-logging.basicConfig(level=logging.INFO, handlers=[_stream_handler, _file_handler])
+logging.basicConfig(level=logging.INFO, handlers=[_stream_handler, _file_handler], force=True)
 
 logger = logging.getLogger(__name__)
+
+limiter = Limiter(key_func=get_remote_address)
 
 
 @asynccontextmanager
@@ -36,23 +43,33 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.post("/upload")
+@limiter.limit(RATE_LIMIT_UPLOAD)
 async def upload(
+    request: Request,
     file: UploadFile,
     session_id: str = Form(...),
 ):
     suffix = Path(file.filename).suffix
-    tmp_path = f"/tmp/{session_id}{suffix}"
-
     contents = await file.read()
 
     if len(contents) < 100:
         raise HTTPException(status_code=422, detail="File is too small or empty")
 
-    with open(tmp_path, "wb") as f:
-        f.write(contents)
+    if len(contents) > MAX_FILE_SIZE_MB * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File exceeds maximum size of {MAX_FILE_SIZE_MB} MB",
+        )
+
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    tmp.write(contents)
+    tmp.close()
+    tmp_path = tmp.name
 
     try:
         text = extractor.extract(tmp_path)
@@ -80,7 +97,9 @@ async def upload(
 
 
 @app.post("/ask")
+@limiter.limit(RATE_LIMIT_ASK)
 async def ask(
+    request: Request,
     session_id: str = Form(...),
     question: str = Form(...),
 ):
