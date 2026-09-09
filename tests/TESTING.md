@@ -64,7 +64,8 @@ Then run only the rate limit file:
 | T016–T020 | `test_upload.py` | Session UUID — missing, empty, valid, malformed, re-upload |
 | MUT01–MUT12 | `test_upload.py` | Mutation tests — mismatched types, null bytes, duplicate fields |
 | T021–T030 | `test_ask.py` | Ask pre-conditions and question content — 404, 422, injections, edge cases |
-| T031–T038 | `test_integration.py` | End-to-end flows — PDF, image, session isolation, concurrency, fallback |
+| T031–T038 | `test_integration.py` | End-to-end flows — PDF, image, session isolation, concurrency |
+| T039b | `test_integration.py` | LLM response format — no leaked error keys in response JSON |
 | TC01–TC07 | `test_integration.py` | Cascade tests — state interaction across multiple uploads and asks |
 | T039–T041 | `test_z_rate_limit.py` | Rate limiting — normal request, burst triggers 429, cooldown recovery |
 | T042–T050 | `test_pipeline_units.py` | Unit tests — extractor, chunker, embedder, retriever |
@@ -136,7 +137,7 @@ Then run only the rate limit file:
 | T035 | Three sequential questions same session → all 200, no state bleed |
 | T036 | Ask with unknown UUID → 4xx (simulates post-restart state) |
 | T037 | Two concurrent uploads different sessions → both 200, no data mixing |
-| T038 | No OpenRouter key → DistilBERT fallback → 200 |
+| T038 | No OpenRouter key → 500 error (DistilBERT fallback removed) |
 
 ### Cascade — State Interaction (TC01–TC07)
 
@@ -167,6 +168,12 @@ Then run only the rate limit file:
 | MUT11 | Numbers and symbols only question → not 500 |
 | MUT12 | Extra unexpected field in upload multipart → not 500 |
 
+### Integration — LLM Response Format (T039b)
+
+| ID | Description |
+|----|-------------|
+| T039b | Upload then ask → response JSON has `answer` key, no `traceback`/`exception` keys leaked |
+
 ### Rate Limit (T039–T041)
 
 | ID | Description |
@@ -194,6 +201,6 @@ Then run only the rate limit file:
 ## Notes
 
 - **Rate limit tests** (`@pytest.mark.rate_limit`, file `test_z_rate_limit.py`) run against the server with **default limits** (`.env` values, no env var overrides). Run them separately as described above. The `z_` prefix forces alphabetical ordering so these tests run last and don't pollute the rate limit window for other tests. The file was renamed from `test_rate_limit.py` for this reason.
-- **DistilBERT fallback test** (T038) requires a third server config — started **without** `OPENROUTER_API_KEY`. As written, T038 passes against OpenRouter too (it only checks 200 + non-empty answer), so it does not verify DistilBERT is actually used. To test the fallback: `Remove-Item Env:OPENROUTER_API_KEY` then restart the server.
+- **T038** (no OpenRouter key) — DistilBERT fallback has been removed. Running without `OPENROUTER_API_KEY` now returns 500. T038 as written only checks for 200 + non-empty answer, so it will fail in this configuration — skip it or update the assertion if testing the error path.
 - Tests run against whatever server is at `localhost:8000` — start it before running pytest.
 - **To skip rate limit tests** in the main suite run: `.venv\Scripts\python.exe -m pytest tests\ --ignore=tests\test_z_rate_limit.py -v` (already the recommended command above).

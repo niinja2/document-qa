@@ -2,5 +2,6 @@
 .venv/
 __pycache__/
 *.pyc
-app.log
+.git/
 .idea/
+app.log

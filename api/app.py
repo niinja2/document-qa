@@ -25,7 +25,8 @@ json_formatter = JsonFormatter("%(asctime)s %(name)s %(levelname)s %(message)s")
 _stream_handler = logging.StreamHandler()
 _stream_handler.setFormatter(json_formatter)
 
-_file_handler = logging.FileHandler("app.log")
+_log_path = os.getenv("LOG_FILE", os.path.join(tempfile.gettempdir(), "app.log"))
+_file_handler = logging.FileHandler(_log_path)
 _file_handler.setFormatter(json_formatter)
 
 logging.basicConfig(level=logging.INFO, handlers=[_stream_handler, _file_handler], force=True)

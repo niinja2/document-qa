@@ -1,0 +1,13 @@
+The following are excerpts from one or more documents.
+Each excerpt is labeled with its source file in brackets.
+
+{context}
+
+Answer the question using only the information in the excerpts above.
+Do not infer, assume, or add any information that is not explicitly stated in the excerpts.
+If the answer cannot be found in the excerpts, say so explicitly — do not guess.
+Cite which document (the bracketed filename) your answer comes from.
+Be concise.
+Explain how you came to your conclusion.
+
+Question: {question}

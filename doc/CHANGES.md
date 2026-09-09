@@ -4,14 +4,14 @@
 
 | # | Topic | Status | Notes |
 |---|---|---|---|
-| 1 | Docker | Pending | Dockerfile + docker-compose.yml — not yet created |
+| 1 | Docker | Done | Dockerfile + docker-compose.yml created; image pre-downloads BGE model |
 | 2 | README | Pending | Setup instructions, examples, approach description — not yet created |
 | 3 | Multi-file upload | Dropped | Reverted due to retrieval imbalance: large doc dominates FAISS index. Single-file kept. |
 | 4 | OpenRouter timeout | Done | `timeout=(5, 60)` added to `requests.post` in `llm/backend.py` |
 | 5 | HTTP status check | Done | `response.raise_for_status()` added before `.json()` in `llm/backend.py` |
-| 6 | DistilBERT context truncation | Dropped | DistilBERT to be replaced; tokenizer already truncates at 512 tokens |
-| 7 | — | Not actioned | Not flagged as assignment-critical |
-| 8 | — | Not actioned | Not flagged as assignment-critical |
+| 6 | DistilBERT removed | Done | DistilBERT fallback removed entirely; `llm/backend.py` now requires OpenRouter — raises `RuntimeError` if key or model missing |
+| 7 | PyMuPDF file handle leak | Done | `with pymupdf.open(...) as doc:` — context manager closes handle on every path |
+| 8 | Missing separator between page text and OCR | Done | `"\n"` added between body text and image text in `extractor.py` |
 | 9 | `OPENROUTER_MODEL` per-request | Done | Both key and model now read inside `answer()` per request |
 | 10 | UUID regenerated on every click | Dropped | Intentional: each upload starts a fresh session |
 | 11 | Max file size check | Done | `MAX_FILE_SIZE_MB` config added; 413 returned before writing to disk |
@@ -102,7 +102,7 @@ def _get_model():
     return _model
 ```
 
-Applied the same pattern to `_ocr_reader` in `extractor.py` and `_qa_model` in `backend.py`.
+Applied the same pattern to `_ocr_reader` in `extractor.py`.
 
 ---
 
@@ -125,15 +125,12 @@ for score, i in zip(distances[0], indices[0]):
 
 ---
 
-## #24 — Removed fake citation clause from LLM prompt
-**File:** `llm/backend.py`
+## #24 — Citation clause — reverted
+**File:** `prompts/qa_prompt.txt`
 
-**Problem:** The prompt said "state which document(s) you used" — but only one document exists
-per session. The model would always cite the one filename regardless of whether it actually
-contributed to the answer. Misleading.
+**Original fix:** Removed "state which document(s) you used" from the hardcoded prompt as misleading when only one document exists.
 
-**Fix:** Removed the sentence. The prompt still asks the model to answer only from the excerpts
-and say so explicitly if the answer isn't there.
+**Reverted:** When the prompt was extracted to `prompts/qa_prompt.txt`, the citation instruction was restored as `"Cite which document (the bracketed filename) your answer comes from."` — now that context is labeled per source file (`[filename.pdf]`), citation is accurate and useful.
 
 ---
 
@@ -242,6 +239,34 @@ the path; user input never touches the filesystem path.
 
 ---
 
+## MUT02 / MUT03 — Wrong file type routing no longer crashes server
+**File:** `ingestion/extractor.py`
+
+**Problem:** When PDF bytes were sent with a `.png` extension (or wrong Content-Type), the server
+routed them to EasyOCR by extension. EasyOCR cannot handle PDF bytes and the server crashed with
+a 500 or dropped the connection.
+
+**Fix:** Magic bytes are checked FIRST (see #27). If the file starts with `%PDF`, it goes to
+PyMuPDF regardless of extension or Content-Type. A PNG with a `.pdf` extension correctly fails
+`_is_pdf()` and is routed to EasyOCR. No crash in either direction.
+
+---
+
+## TC01–TC07 — Failed upload no longer wipes existing session index
+**File:** `api/app.py`
+
+**Problem:** When a second upload to the same session failed (empty file, unsupported type,
+extraction error), the server was calling `store.save()` with an empty or partial result,
+wiping the existing session index. A subsequent `/ask` returned 404 instead of answering
+from the previously indexed content.
+
+**Fix:** `store.save()` is only called at the very end of the upload handler, after all
+validation and extraction succeed. Any failure raises `HTTPException` before `store.save()`
+is reached — the existing session index is never touched. TC01–TC07 all pass: the session
+survives a failed upload.
+
+---
+
 ## Bonus fixes applied alongside (from "fix soon" list)
 
 ### #4 — OpenRouter request timeout
@@ -265,4 +290,43 @@ at import time. If the env var was set after import, the change was invisible un
 Also, if key is set but model isn't, `"model": None` would be sent to OpenRouter.
 
 **Fix:** Both `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` are now read inside `answer()` per
-request. Falls back to DistilBERT if either is missing.
+request. Raises a clear `RuntimeError` if either is missing.
+
+---
+
+## #1 — Docker
+**Files:** `Dockerfile`, `docker-compose.yml`, `.dockerignore`
+
+Two-service Docker setup: `api` (FastAPI, port 8000) and `frontend` (Streamlit, port 8501).
+
+- Base image: `python:3.11-slim` + system libs for EasyOCR (`libgl1`, `libglib2.0-0`)
+- BGE embedding model (`BAAI/bge-base-en-v1.5`) pre-downloaded during `docker build` — avoids slow first-request download at runtime
+- `.env` passed at runtime via `env_file` — secrets never baked into the image
+- `API_URL=http://api:8000` injected into `frontend` service so Streamlit reaches the API by Docker service name, not localhost
+- `.dockerignore` excludes `.env`, `.venv/`, `__pycache__`, `.git/`, `.idea/`
+
+Build and run: `docker-compose up --build`
+
+---
+
+## Additional changes (post-review round)
+
+### DistilBERT removed
+**File:** `llm/backend.py`, `requirements.txt`
+
+DistilBERT fallback removed entirely. `torch` and `transformers` removed from `requirements.txt`. `llm/backend.py` now only calls OpenRouter — raises `RuntimeError` with a clear message if `OPENROUTER_API_KEY` or `OPENROUTER_MODEL` is not set.
+
+### Prompt extracted to file
+**File:** `prompts/qa_prompt.txt`
+
+LLM prompt moved from hardcoded string in `llm/backend.py` to `prompts/qa_prompt.txt`. Loaded at import time with a `FileNotFoundError` guard. Prompt instructs the model to: answer only from provided excerpts, cite the source document by bracketed filename, explain its reasoning, and say explicitly if the answer is not in the excerpts.
+
+### Log file path fixed
+**File:** `api/app.py`, `.env.example`
+
+`app.log` was written to the current working directory, which is not writable in Docker. Now defaults to `tempfile.gettempdir()/app.log` (always writable). Overridable via `LOG_FILE` env var.
+
+### Streamlit upload limit aligned
+**File:** `.streamlit/config.toml`
+
+Streamlit's default upload limit is 200 MB. Created `.streamlit/config.toml` with `maxUploadSize = 50` to match the API's `MAX_FILE_SIZE_MB = 50`. **Note:** if `MAX_FILE_SIZE_MB` is changed in `.env`, `.streamlit/config.toml` must be updated manually to stay in sync.

@@ -145,16 +145,13 @@ class TestEndToEnd:
         # Sessions must be distinct
         assert results["session_A"][0] != results["session_B"][0]
 
-    def test_T038_fallback_to_distilbert_without_api_key(
+    def test_T038_openrouter_returns_answer(
         self, client, text_pdf_bytes
     ):
-        """T038 — Without OPENROUTER_API_KEY the system falls back to DistilBERT.
+        """T038 — With OPENROUTER_API_KEY set, the endpoint returns 200 with an answer.
 
-        We can't unset the env var server-side via monkeypatch (different process),
-        so this test is marked xfail unless the server is started without the key.
-        The important thing is: the endpoint must still return 200 with an answer.
-
-        Run with: OPENROUTER_API_KEY="" pytest tests/test_integration.py::TestEndToEnd::test_T038
+        DistilBERT fallback has been removed. Without the key the server returns 500.
+        This test runs against a live server with the key configured in .env.
         """
         sid = str(uuid.uuid4())
         upload_file(client, sid, text_pdf_bytes, "doc.pdf")

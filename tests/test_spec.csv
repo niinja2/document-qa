@@ -36,7 +36,7 @@ T034,Integration,Session isolation — two sessions,session A asks about session
 T035,Integration,3 sequential questions same session,upload then ask 3 different questions,All 200 · no state bleed,PASS
 T036,Integration,Unknown UUID returns error (simulates post-restart state),ask with fresh UUID never used for upload,4xx · session not found,PASS
 T037,Integration,Concurrent uploads different sessions,2 threads upload simultaneously,Both 200 · no data mixing,PASS
-T038,Integration,DistilBERT fallback — no OpenRouter key,OPENROUTER_API_KEY unset then upload then ask,200 · DistilBERT answer returned,PASS
+T038,Integration,No OpenRouter key — error returned,OPENROUTER_API_KEY unset then upload then ask,500 · DistilBERT fallback removed,SKIP
 TC01,Cascade,Good index then empty upload then ask (index survives),upload PDF then upload empty.pdf then ask,200 · index not wiped by failed upload,PASS
 TC02,Cascade,Good index then unsupported upload then ask (index survives),upload PDF then upload .docx then ask,200 · rejected file does not corrupt index,PASS
 TC03,Cascade,Upload then re-upload then ask (index updated),upload PDF then upload different PDF then ask,200 · ask reflects updated content,PASS

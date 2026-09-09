@@ -2,8 +2,10 @@ Here are all the files for the handover:
 
 Specification
 
-ASSIGNMENT.md
-SPEC.md
+doc/ASSIGNMENT.md
+doc/SPEC.md
+doc/CHANGES.md
+doc/TEST_CONTRACT.md
 
 Source code
 
@@ -24,7 +26,7 @@ requirements.txt
 
 Tests
 
-tests/README.md
+tests/TESTING.md
 tests/test_spec.csv
 tests/conftest.py
 tests/test_upload.py
