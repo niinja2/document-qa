@@ -23,7 +23,7 @@ Built with FastAPI + Streamlit frontend. Runs locally or via Docker.
 ### Manual
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/niinja2/document-qa.git
 cd document-qa
 python -m venv .venv
 .venv\Scripts\activate       # Windows
@@ -53,13 +53,36 @@ Open `http://localhost:8501`.
 
 ### Docker
 
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
+
+**1. Clone the repo**
+```bash
+git clone https://github.com/niinja2/document-qa.git
+cd document-qa
+```
+
+**2. Create your `.env` file**
+
+```bash
+copy .env.example .env
+```
+
+Open `.env` and set your key:
+```
+OPENROUTER_API_KEY=your_key_here
+OPENROUTER_MODEL=mistralai/ministral-3b-2410
+```
+
+**3. Build and run**
 ```bash
 docker-compose up --build
 ```
 
-Open `http://localhost:8501`. The API runs on port 8000, Streamlit on 8501.
+**4. Open the app**
 
-The `.env` file is read at runtime — it is never baked into the image.
+`http://localhost:8501`
+
+The API runs on port 8000, the frontend on port 8501. The `.env` file is read at runtime — it is never baked into the image.
 
 ---
 
