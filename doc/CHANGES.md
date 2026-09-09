@@ -5,13 +5,13 @@
 | # | Topic | Status | Notes |
 |---|---|---|---|
 | 1 | Docker | Done | Dockerfile + docker-compose.yml created; image pre-downloads BGE model |
-| 2 | README | Pending | Setup instructions, examples, approach description — not yet created |
+| 2 | README | Done | Setup instructions, API examples, approach, development process narrative |
 | 3 | Multi-file upload | Dropped | Reverted due to retrieval imbalance: large doc dominates FAISS index. Single-file kept. |
 | 4 | OpenRouter timeout | Done | `timeout=(5, 60)` added to `requests.post` in `llm/backend.py` |
 | 5 | HTTP status check | Done | `response.raise_for_status()` added before `.json()` in `llm/backend.py` |
 | 6 | DistilBERT removed | Done | DistilBERT fallback removed entirely; `llm/backend.py` now requires OpenRouter — raises `RuntimeError` if key or model missing |
-| 7 | PyMuPDF file handle leak | Done | `with pymupdf.open(...) as doc:` — context manager closes handle on every path |
-| 8 | Missing separator between page text and OCR | Done | `"\n"` added between body text and image text in `extractor.py` |
+| 7 | PyMuPDF file handle leak | Done | `with pymupdf.open(...) as doc:` — context manager closes handle on every path (`extractor.py:37`) |
+| 8 | Missing separator between page text and OCR | Done | `"\n"` added between body text and image text (`extractor.py:49`) |
 | 9 | `OPENROUTER_MODEL` per-request | Done | Both key and model now read inside `answer()` per request |
 | 10 | UUID regenerated on every click | Dropped | Intentional: each upload starts a fresh session |
 | 11 | Max file size check | Done | `MAX_FILE_SIZE_MB` config added; 413 returned before writing to disk |
@@ -28,7 +28,7 @@
 | 8 | Missing separator page text + OCR | Done | `"\n"` added between body and image text — see cleanup round |
 | 9 | `OPENROUTER_MODEL` read at import time | Done | Both key and model now read per-request — see detail below |
 | 14 | `get_remote_address` collapses behind proxy | Skipped | Not relevant for this deployment — see reasoning below |
-| 16 | `_ocr_from_bytes` catches only `OSError` | Done | Now catches all exceptions — see cleanup round |
+| 16 | `_ocr_from_bytes` catches only `OSError` | Done | Now catches all exceptions — covered under #26 below |
 | 20 | Chunker infinite loop if `CHUNK_OVERLAP >= CHUNK_SIZE` | Skipped | Not relevant for this use case — see reasoning below |
 | 21 | Session store has no TTL or eviction | Skipped | Not relevant at demo scale — see reasoning below |
 
@@ -81,7 +81,7 @@ Stray debug script, not part of the test suite, not tracked in `tests/`. Deleted
 ---
 
 ## #22 — Thread-safe lazy loaders
-**Files:** `pipeline/embedder.py`, `ingestion/extractor.py`, `llm/backend.py`
+**Files:** `pipeline/embedder.py:11-17`, `ingestion/extractor.py:15-21`, `llm/backend.py`
 
 **Problem:** The lazy-loader pattern `if _model is None: _model = load()` is not thread-safe.
 Two concurrent requests hitting the server for the first time could both pass the `None` check
@@ -107,7 +107,7 @@ Applied the same pattern to `_ocr_reader` in `extractor.py`.
 ---
 
 ## #23 — Relevance threshold in retriever
-**Files:** `pipeline/retriever.py`, `config.py`, `.env`, `.env.example`
+**Files:** `pipeline/retriever.py:17-19`, `config.py`, `.env`, `.env.example`
 
 **Problem:** `retrieve()` always returned top-K chunks regardless of how relevant they were.
 For an off-topic question, the LLM would receive 5 unrelated chunks and might hallucinate.
@@ -145,7 +145,7 @@ for score, i in zip(distances[0], indices[0]):
 ---
 
 ## #26 — Consistent error handling in extractor
-**File:** `ingestion/extractor.py`
+**File:** `ingestion/extractor.py:31-32, 54-55`
 
 **Problem:** `extract_image` caught all exceptions and raised `ValueError`, but `extract_pdf`
 caught nothing — any PyMuPDF failure would bubble up as a raw exception.
@@ -159,7 +159,7 @@ Also `_ocr_from_bytes` only caught `OSError`, letting other image errors escape.
 ---
 
 ## #27 — Magic-byte routing fixed (JPEG with .pdf extension)
-**File:** `ingestion/extractor.py`
+**File:** `ingestion/extractor.py:72-80`
 
 **Problem:** Old routing: `if path.endswith(".pdf") or _is_pdf(file_path)`.
 A JPEG with a `.pdf` extension matched `endswith(".pdf")` first and was sent to PyMuPDF,
@@ -188,7 +188,7 @@ for this cleanup round.
 ---
 
 ## #29 — `logging.basicConfig` fixed with `force=True`
-**File:** `api/app.py`
+**File:** `api/app.py:32`
 
 **Problem:** `logging.basicConfig` is a no-op if the root logger already has handlers attached
 (uvicorn attaches its own handlers before app code runs in some configurations).
@@ -200,7 +200,7 @@ applying ours, guaranteeing our JSON formatter is always active.
 ---
 
 ## #30 — Updated `import pymupdf as fitz` → `import pymupdf`
-**File:** `ingestion/extractor.py`
+**File:** `ingestion/extractor.py:3`
 
 **Problem:** `import pymupdf as fitz` is a legacy alias from when the package was called
 `fitz`. Modern PyMuPDF ships as `pymupdf`; the alias works but signals old code.
@@ -210,7 +210,7 @@ applying ours, guaranteeing our JSON formatter is always active.
 ---
 
 ## #11 — Max file size check
-**Files:** `config.py`, `api/app.py`, `.env`, `.env.example`
+**Files:** `api/app.py:64-68`, `config.py`, `.env`, `.env.example`
 
 **Problem:** No upper bound on uploaded file size. A large file would be read entirely into memory
 before any rejection, potentially exhausting server resources.
@@ -222,7 +222,7 @@ writing anything to disk.
 ---
 
 ## #12 — Path traversal in temp file path
-**File:** `api/app.py`
+**File:** `api/app.py:70-73`
 
 **Problem:** `session_id` is a user-supplied form field. The old code used it to build the temp
 file path:
@@ -253,7 +253,7 @@ PyMuPDF regardless of extension or Content-Type. A PNG with a `.pdf` extension c
 ---
 
 ## TC01–TC07 — Failed upload no longer wipes existing session index
-**File:** `api/app.py`
+**File:** `api/app.py:95`
 
 **Problem:** When a second upload to the same session failed (empty file, unsupported type,
 extraction error), the server was calling `store.save()` with an empty or partial result,
@@ -322,7 +322,7 @@ DistilBERT fallback removed entirely. `torch` and `transformers` removed from `r
 LLM prompt moved from hardcoded string in `llm/backend.py` to `prompts/qa_prompt.txt`. Loaded at import time with a `FileNotFoundError` guard. Prompt instructs the model to: answer only from provided excerpts, cite the source document by bracketed filename, explain its reasoning, and say explicitly if the answer is not in the excerpts.
 
 ### Log file path fixed
-**File:** `api/app.py`, `.env.example`
+**File:** `api/app.py:28-29`, `.env.example`
 
 `app.log` was written to the current working directory, which is not writable in Docker. Now defaults to `tempfile.gettempdir()/app.log` (always writable). Overridable via `LOG_FILE` env var.
 
@@ -330,3 +330,13 @@ LLM prompt moved from hardcoded string in `llm/backend.py` to `prompts/qa_prompt
 **File:** `.streamlit/config.toml`
 
 Streamlit's default upload limit is 200 MB. Created `.streamlit/config.toml` with `maxUploadSize = 50` to match the API's `MAX_FILE_SIZE_MB = 50`. **Note:** if `MAX_FILE_SIZE_MB` is changed in `.env`, `.streamlit/config.toml` must be updated manually to stay in sync.
+
+### Test suite README renamed
+**File:** `tests/README.md` → `tests/TESTING.md`
+
+Renamed to `TESTING.md` to match the naming convention of other doc files (`SPEC.md`, `CHANGES.md`). Content unchanged.
+
+### Test documents added
+**Directory:** `test_docs/`
+
+Sample documents added to the repository as required by the assignment ("find or create random/dummy test docs, store in GitHub repo"). Includes PDFs, PNG/JPG invoices and contracts, a BMP stock table, and a handwriting sample — covering all supported file types and real-world document categories.

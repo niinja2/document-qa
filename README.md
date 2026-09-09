@@ -18,7 +18,7 @@ Built with FastAPI + Streamlit frontend. Runs locally or via Docker.
 ### Prerequisites
 
 - Python 3.11+
-- An [OpenRouter](https://openrouter.ai) API key and a model name (e.g. `mistralai/mistral-small-24b`)
+- An [OpenRouter](https://openrouter.ai) API key and a model name (e.g. `mistralai/ministral-3b-2410`)
 
 ### Manual
 
@@ -34,7 +34,7 @@ Copy `.env.example` to `.env` and fill in your key:
 
 ```
 OPENROUTER_API_KEY=your_key_here
-OPENROUTER_MODEL=mistralai/mistral-small-24b
+OPENROUTER_MODEL=mistralai/ministral-3b-2410
 ```
 
 Start the API:
@@ -113,7 +113,15 @@ File routing uses magic bytes (`%PDF`), not the file extension — a PDF sent wi
 
 ---
 
-## Approach
+## How it works
+
+### Scope decisions
+
+The optional enhancements — NER, Redis, RAG — were evaluated against what the application actually needs to do. We considered multi-user support, multiple documents per user, large document sizes, and persistent storage. Supporting multiple users properly isn't just one feature — it's a whole system: authentication, per-user storage, session recovery across restarts, user-level logging. All of that is real engineering effort, and none of it is needed for a demo that handles one person uploading a document and asking questions about it. We didn't want to do three things badly instead of doing one thing well.
+
+RAG was the one enhancement worth adding — not because the core requirement demanded it, but because it solves a real problem: large documents can't be sent to an LLM in one shot. Chunking and vector retrieval let us handle documents of any size and send only the relevant parts to the model. At demo scale with single-file sessions, the LLM could handle most documents directly. RAG was chosen because it's the right architectural direction — it handles arbitrarily large documents, and it's the foundation any production version of this system would build on. The complexity it introduces is discussed below.
+
+Out of the general optional enhancements, we implemented a Streamlit UI, structured JSON logging, modular code organization, rate limiting, and input sanitization. Testing was added on top — not listed as an optional enhancement, but treated as a requirement because we wanted to guarantee the quality of the system before delivery. The testing approach is described in the development process section below.
 
 ### Architecture
 
@@ -121,12 +129,19 @@ Two-process system: FastAPI backend + Streamlit frontend. Both containerised via
 
 RAG pipeline:
 - **Chunker** — 500-word chunks, 50-word overlap
-- **Embedder** — `BAAI/bge-base-en-v1.5` (768-dim, L2-normalized), served via `sentence-transformers`
+- **Embedder** — `BAAI/bge-base-en-v1.5` (768-dim, L2-normalized), via `sentence-transformers`
 - **Index** — FAISS `IndexFlatIP` (cosine similarity on normalized vectors)
 - **Retriever** — top-5 chunks by cosine score, filtered by `RETRIEVAL_THRESHOLD`
 - **LLM** — OpenRouter (model configurable via `.env`)
 
-Sessions are stored in RAM, keyed by UUID. No persistence across restarts.
+The architecture follows naturally from the two endpoints:
+
+- `POST /upload`: extract text → chunk → embed → index → store in session
+- `POST /ask`: embed question → retrieve top chunks → label by source → send to LLM → return answer
+
+Text extraction routes by magic bytes — if the file starts with `%PDF` it goes to PyMuPDF (with EasyOCR for embedded images), everything else goes to EasyOCR directly. A PDF sent with a `.png` extension is handled correctly; a JPEG sent with a `.pdf` extension fails cleanly instead of crashing.
+
+Sessions are stored in RAM, keyed by UUID. One FAISS index per session. No persistence across restarts.
 
 ### Why these choices
 
@@ -146,11 +161,47 @@ The prompt instructs the model to:
 
 Prompt is in `prompts/qa_prompt.txt`.
 
+### What we tried and abandoned
+
+Multi-file upload was implemented first. The idea was to index all uploaded documents together in one FAISS index and retrieve across all of them. The problem: add multi-file upload, and you immediately need a way to make sure the retriever doesn't ignore smaller documents in favour of larger ones. Fix that, and you need more sophisticated index management. One decision pulls ten more behind it. It was reverted. Single file per session, index replaced on each upload. (`doc/CHANGES.md` #3)
+
+DistilBERT was initially included as a local fallback — run a QA model on-device when no OpenRouter key is configured. It was removed for two reasons: its 512-token context limit meant it would silently truncate most real documents and degrade quality without warning, and OpenRouter already covers the use case better. A clear error saying "set your API key" is better than a fallback that quietly produces worse answers. (`doc/CHANGES.md` #6)
+
+The prompt started as a hardcoded string inside `backend.py`. LLM instructions are not code — they belong in a file where they can be read, edited, and versioned independently. Moving it to `prompts/qa_prompt.txt` also made it easier to improve: anti-hallucination instructions, source citation, and reasoning explanation were added. The citation clause has its own small history — removed during review as misleading (only one document per session), then restored when each chunk was labeled with its source filename, making citation accurate and meaningful. (`doc/CHANGES.md` — "Prompt extracted to file")
+
+### Scaling decisions
+
+Scaling for multiple users means authentication. Authentication means per-user storage. Per-user storage means persistence. Persistence means a caching layer like Redis. None of these features are useful in isolation — they only make sense as a complete system. Since we weren't building that system, we didn't build any of it.
+
+RAG is the exception — it solves a concrete problem without requiring anything else to be in place. It stands alone, which is why it was the one scaling feature worth adding.
+
 ### Development process
 
-Development was AI-assisted. Architecture and key decisions were made by the developer; code was generated iteratively through a coding assistant. After the initial implementation, a separate critical review pass identified ~30 issues — each was evaluated and either fixed, deferred, or consciously skipped with documented reasoning (see `doc/CHANGES.md`).
+Development was AI-assisted throughout. Architecture, scope decisions, and all trade-offs were made by the developer. The LLMs — coder, tester, reviewer — were directed and evaluated, not followed.
 
-Testing used an independent tester LLM that had access only to the spec and test contract — not the source code — so tests were derived from the contract, not from implementation assumptions. The test suite covers file types, edge cases, session isolation, cascade state, mutation tests, and rate limiting.
+**1. Architecture and specification**
+
+Started from the assignment requirements. The architecture was designed first — pipelines, endpoints, component responsibilities, session model. This became the opening section of the specification. The spec was a living document, updated continuously as coding decisions were made, and finalized after the code was complete — at that point it was accurate enough to hand to an independent tester.
+
+**2. Testing**
+
+Testing was not a requirement but was treated as one. The tester received the assignment, specification, test contract (`doc/TEST_CONTRACT.md`), evaluation criteria, and a testing methodology document. It had no access to the source code — by design.
+
+The tester needed to be independent because code context is a lens. A tester that has read the source code inherits the developer's assumptions — it tests what the code does rather than what it was supposed to do. Separation guarantees a distinct context: everything the tester knows about the system comes from the spec and the contract, the same interface any external user would have. That's the only way to prevent the test from repeating the same assumptions the developer already made. This is grounded in personal research and a known failure mode in LLM-assisted testing.
+
+The methodology had four steps: map every feature and boundary; fill edge cases (at the limit, just below, just above); add cascade tests — sequences of operations that might pass individually but fail together; and mutation tests — single-property changes to valid requests. This produced an initial suite of ~50 tests.
+
+Several rounds of back and forth followed. Bugs were found — some at the C level inside PyMuPDF and EasyOCR, fixed by adding safeguards in the Python layer above. Rate limit tests revealed that rate limit values needed to be environment variables so they could be overridden during testing. The final suite was 83 tests.
+
+Once isolated from the code, the tester has to derive everything from the contract. That's both the strength and the risk — if the contract is wrong, the tester's assumptions are wrong. The multi-file example illustrates this: the original contract described `/upload` as accepting files (plural). The tester wrote multi-file tests accordingly. When multi-file was reverted in the implementation, those tests broke. The tester had no way to know — it only knew what the contract said. The contract was amended and re-sent. The mismatch was visible precisely because the tester was isolated: it couldn't silently absorb the implementation change the way a code-aware tester would.
+
+**3. Code review**
+
+A separate reviewer with full code access — assignment, spec, code, and tests via `doc/handover.txt` — identified ~30 issues across four categories: security fixes (path traversal, file size limit), robustness fixes (thread safety, error handling, log path), config improvements (hardcoded values moved to environment variables), and design observations. Each was evaluated and either fixed, deferred, or consciously skipped with documented reasoning. All decisions are in `doc/CHANGES.md`.
+
+**4. Cleanup and Docker**
+
+Working across multiple agents and document versions naturally produces drift — spec wording diverges from code, test descriptions get stale, references to removed features linger. After the LLM rounds were done, a cleanup pass went through all doc and test files to bring everything back into alignment. Then Docker — containerizing the two services so the whole thing runs with one command.
 
 ---
 
@@ -163,7 +214,7 @@ Key variables:
 | Variable | Default | Description |
 |---|---|---|
 | `OPENROUTER_API_KEY` | — | Required |
-| `OPENROUTER_MODEL` | — | Required (e.g. `mistralai/mistral-small-24b`) |
+| `OPENROUTER_MODEL` | — | Required (e.g. `mistralai/ministral-3b-2410`) |
 | `MAX_FILE_SIZE_MB` | 50 | Upload size limit |
 | `RETRIEVAL_THRESHOLD` | 0.0 | Min cosine score for retrieved chunks |
 | `TOP_K` | 5 | Chunks retrieved per question |
