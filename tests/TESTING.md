@@ -193,7 +193,7 @@ Then run only the rate limit file:
 | T047 | Chunker: 449 words → 1 chunk |
 | T048 | Chunker: 450 words → 1 chunk |
 | T049 | Chunker: 451 words → 2 chunks, second starts at word450 |
-| T050 | Chunker: 10000 words → 22 chunks |
+| T050 | Chunker: 10000 words → 23 chunks |
 | TS01 | Store: save then load returns same data |
 | TS02 | Store: load unknown UUID returns None, not KeyError |
 | TS03 | Store: overwrite same UUID — second save replaces first |

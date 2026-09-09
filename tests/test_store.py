@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from session.store import save, load
 
-# Contract: save(session_id: str, chunks: list[str], index) -> None
+# Contract: save(session_id: str, chunks: list[dict], index) -> None
 #           load(session_id: str) -> {"chunks": [...], "index": ...} | None
 
 DUMMY_CHUNKS = [{"text": "chunk one", "doc_id": "a.pdf"}, {"text": "chunk two", "doc_id": "a.pdf"}]

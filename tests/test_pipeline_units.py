@@ -47,7 +47,7 @@ class TestExtractor:
         assert len(result.strip()) > 0
 
     def test_T043_blank_pdf_handled_gracefully(self, blank_pdf_path):
-        """T044 — Blank PDF (no text, no images) → empty string or known exception, not crash."""
+        """T043 — Blank PDF (no text, no images) → empty string or known exception, not crash."""
         from ingestion.extractor import extract_pdf
         try:
             result = extract_pdf(blank_pdf_path)
@@ -60,7 +60,7 @@ class TestExtractor:
             )
 
     def test_T044_image_file_uses_ocr(self, png_path):
-        """T045 — PNG image → EasyOCR path → non-empty string extracted."""
+        """T044 — PNG image → EasyOCR path → non-empty string extracted."""
         from ingestion.extractor import extract_image
         result = extract_image(png_path)
         assert isinstance(result, str)

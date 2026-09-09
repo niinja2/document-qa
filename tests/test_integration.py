@@ -68,7 +68,7 @@ class TestEndToEnd:
         Session B gets a PDF containing 'BETA_UNIQUE_TERM'.
         Asking session A about BETA_UNIQUE_TERM must not return it as primary answer.
         """
-        import fitz
+        import pymupdf as fitz
 
         def make_pdf(term):
             doc = fitz.open()
@@ -205,7 +205,7 @@ class TestCascades:
 
     def test_TC03_valid_upload_then_reupload_then_ask(self, client, text_pdf_bytes):
         """TC03 — Upload → re-upload → ask reflects content (index updated, not broken)."""
-        import fitz
+        import pymupdf as fitz
         sid = str(uuid.uuid4())
         upload_file(client, sid, text_pdf_bytes, "first.pdf")
 

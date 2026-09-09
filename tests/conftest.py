@@ -52,7 +52,7 @@ def fresh_session_id():
 @pytest.fixture(scope="session")
 def text_pdf_bytes():
     """Minimal PDF with a readable text layer."""
-    import fitz
+    import pymupdf as fitz
     doc = fitz.open()
     page = doc.new_page()
     sentence = "The quick brown fox jumps over the lazy dog. "
@@ -65,7 +65,7 @@ def text_pdf_bytes():
 @pytest.fixture(scope="session")
 def large_text_pdf_bytes():
     """PDF with >500 words to exercise chunker boundary."""
-    import fitz
+    import pymupdf as fitz
     doc = fitz.open()
     page = doc.new_page()
     # ~600 distinct words
@@ -79,7 +79,7 @@ def large_text_pdf_bytes():
 @pytest.fixture(scope="session")
 def blank_pdf_bytes():
     """PDF with pages but no content (empty text layer, no images)."""
-    import fitz
+    import pymupdf as fitz
     doc = fitz.open()
     doc.new_page()  # blank page, nothing inserted
     buf = io.BytesIO()
