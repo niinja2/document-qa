@@ -1,9 +1,27 @@
 import uuid
+import time
 import requests
 import streamlit as st
 from config import API_URL
 
+
+@st.cache_resource
+def wait_for_api():
+    for _ in range(30):
+        try:
+            requests.get(f"{API_URL}/openapi.json", timeout=1)
+            return True
+        except requests.RequestException:
+            time.sleep(2)
+    return False
+
+
 st.title("Document QA")
+
+with st.spinner("API loading..."):
+    if not wait_for_api():
+        st.error("API not reachable. Please refresh.")
+        st.stop()
 
 uploaded_file = st.file_uploader(
     "Upload a document",

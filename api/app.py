@@ -13,6 +13,8 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
+import requests
+
 from config import RATE_LIMIT_UPLOAD, RATE_LIMIT_ASK, MAX_FILE_SIZE_MB
 from ingestion import extractor
 from session import store
@@ -39,7 +41,8 @@ limiter = Limiter(key_func=get_remote_address)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     embedder.embed(["warmup"])
-    logger.info("Embedding model warmed up")
+    extractor._get_ocr_reader()
+    logger.info("Models warmed up")
     yield
 
 
@@ -50,13 +53,13 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @app.post("/upload")
 @limiter.limit(RATE_LIMIT_UPLOAD)
-async def upload(
+def upload(
     request: Request,
     file: UploadFile,
     session_id: str = Form(...),
 ):
     suffix = Path(file.filename).suffix
-    contents = await file.read()
+    contents = file.file.read()
 
     if len(contents) < 100:
         raise HTTPException(status_code=422, detail="File is too small or empty")
@@ -99,7 +102,7 @@ async def upload(
 
 @app.post("/ask")
 @limiter.limit(RATE_LIMIT_ASK)
-async def ask(
+def ask(
     request: Request,
     session_id: str = Form(...),
     question: str = Form(...),
@@ -116,5 +119,14 @@ async def ask(
     context_parts = [f"[{c['doc_id']}]\n{c['text']}" for c in top_chunks]
     context = "\n\n".join(context_parts)
 
-    result = backend.answer(context, question)
+    try:
+        result = backend.answer(context, question)
+    except requests.Timeout:
+        raise HTTPException(status_code=504, detail="LLM service timed out. Please try again.")
+    except requests.ConnectionError:
+        raise HTTPException(status_code=502, detail="LLM service unreachable.")
+    except requests.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"LLM service error (HTTP {e.response.status_code}).")
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     return {"answer": result}
