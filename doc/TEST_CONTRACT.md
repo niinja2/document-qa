@@ -102,7 +102,7 @@ store.load(session_id: str) -> dict | None   # {"chunks": [...], "index": ...} o
 **Multi-file reverted:**
 - Multi-file upload (`files` plural) was implemented then reverted due to retrieval imbalance — large documents dominated the FAISS index, causing the retriever to ignore smaller documents entirely
 - Current implementation: single file per upload (`file` singular)
-- Consequence: `/upload` accepts exactly one file; sending multiple raises 422
+- Consequence: `/upload` reads one `file` field; a request without it (for example one using the old `files` field) returns 422. Behaviour with several `file` parts in one request is not specified and not tested
 - See `doc/CHANGES.md` for full reasoning
 
 ---

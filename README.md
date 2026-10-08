@@ -220,9 +220,9 @@ Testing was not a requirement but was treated as one. The tester received the as
 
 The tester needed to be independent because code context is a lens. A tester that has read the source code inherits the developer's assumptions — it tests what the code does rather than what it was supposed to do. Separation guarantees a distinct context: everything the tester knows about the system comes from the spec and the contract, the same interface any external user would have. That's the only way to prevent the test from repeating the same assumptions the developer already made. This is grounded in personal research and a known failure mode in LLM-assisted testing.
 
-The methodology had four steps: map every feature and boundary; fill edge cases (at the limit, just below, just above); add cascade tests — sequences of operations that might pass individually but fail together; and mutation tests — single-property changes to valid requests. This produced an initial suite of ~50 tests.
+The methodology document (`doc/TESTING_METHODOLOGY.md`) is a general one, written for reuse across projects. Applied here it came down to four steps: map every feature and boundary; fill edge cases (at the limit, just below, just above); add cascade tests — sequences of operations that might pass individually but fail together; and mutation tests — single-property changes to valid requests. This produced an initial suite of ~50 tests.
 
-Several rounds of back and forth followed. Bugs were found, and safeguards were added in the Python layer above PyMuPDF and EasyOCR. Rate limit tests revealed that rate limit values needed to be environment variables so they could be overridden during testing. The final suite was 84 tests.
+Several rounds of back and forth followed. Bugs were found, and safeguards were added in the Python layer above PyMuPDF and EasyOCR. Rate limit tests revealed that rate limit values needed to be environment variables so they could be overridden during testing. The final suite was 84 tests; a file-size-limit test was added later, for 85.
 
 Once isolated from the code, the tester has to derive everything from the contract. That's both the strength and the risk — if the contract is wrong, the tester's assumptions are wrong. The multi-file example illustrates this: the original contract described `/upload` as accepting files (plural). The tester wrote multi-file tests accordingly. When multi-file was reverted in the implementation, those tests broke. The tester had no way to know — it only knew what the contract said. The contract was amended and re-sent. The mismatch was visible precisely because the tester was isolated: it couldn't silently absorb the implementation change the way a code-aware tester would.
 
@@ -280,7 +280,9 @@ session/        In-memory session store
 llm/            OpenRouter backend
 prompts/        LLM prompt template
 app.py          Streamlit frontend
-doc/            Specification, changes log, test contract
-tests/          Black-box test suite
+config.py       Settings read from environment variables
+Dockerfile, docker-compose.yml   Two-service Docker setup
+doc/            Assignment, specification, changes log, test contract, testing methodology
+tests/          API and unit test suite
 test_docs/      Sample documents for testing
 ```

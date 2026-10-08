@@ -1,6 +1,6 @@
 """
 End-to-end integration tests — CAT-07
-Upload → ask flows; session isolation; multi-file retrieval; LLM fallback.
+Upload → ask flows; session isolation; concurrent uploads; cascade sequences.
 """
 import io
 import threading
@@ -121,8 +121,11 @@ class TestEndToEnd:
         r = ask(client, fresh_session_id, "What is this document about?")
         assert r.status_code >= 400
 
-    def test_T037_concurrent_uploads_no_mixing(self, client, text_pdf_bytes):
-        """T037 — Two concurrent uploads to different sessions must not mix data."""
+    def test_T037_concurrent_uploads_both_succeed(self, client, text_pdf_bytes):
+        """T037 — Two concurrent uploads to different sessions both return 200.
+
+        Checks status codes only; it does not inspect the stored data of each session.
+        """
         results = {}
         errors = []
 
@@ -156,11 +159,10 @@ class TestEndToEnd:
         sid = str(uuid.uuid4())
         upload_file(client, sid, text_pdf_bytes, "doc.pdf")
         r = ask(client, sid, "What is in this document?")
-        # Regardless of backend used, must return 200
         assert r.status_code == 200
         assert len(r.json().get("answer", "")) > 0
 
-    def test_T039_llm_response_format_no_leaked_errors(self, client, text_pdf_bytes):
+    def test_T039b_llm_response_format_no_leaked_errors(self, client, text_pdf_bytes):
         """T039b — /ask response must be well-formed JSON with no leaked internal error keys.
 
         Rubric item: AI/LLM error handling — the API must never expose tracebacks,
@@ -204,7 +206,11 @@ class TestCascades:
         assert len(r.json().get("answer", "")) > 0
 
     def test_TC03_valid_upload_then_reupload_then_ask(self, client, text_pdf_bytes):
-        """TC03 — Upload → re-upload → ask reflects content (index updated, not broken)."""
+        """TC03 — Upload → re-upload → ask still returns an answer (index not broken).
+
+        Checks 200 + non-empty answer only; it does not verify that the answer
+        comes from the second document.
+        """
         import pymupdf as fitz
         sid = str(uuid.uuid4())
         upload_file(client, sid, text_pdf_bytes, "first.pdf")

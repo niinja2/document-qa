@@ -1,6 +1,6 @@
 """
-/upload endpoint tests — CAT-01 through CAT-04
-Covers: file type, file count, file size, session UUID.
+/upload endpoint tests — CAT-01 through CAT-04, and CAT-12 (mutations)
+Covers: file type, file count, file size, session UUID, single-property mutations.
 """
 import io
 import uuid
@@ -9,6 +9,7 @@ import pytest
 import httpx
 
 from conftest import upload_file
+from config import MAX_FILE_SIZE_MB
 
 
 def _upload_expect_4xx(client, *args, **kwargs):
@@ -119,6 +120,13 @@ class TestFileSize:
         r = upload_file(client, session_id, text_pdf_bytes, "normal.pdf")
         assert r.status_code == 200
 
+    def test_T014_file_over_size_limit(self, client, session_id):
+        """T014 — File just over MAX_FILE_SIZE_MB → 413."""
+        limit_bytes = MAX_FILE_SIZE_MB * 1024 * 1024
+        oversized = b"%PDF-1.4\n" + b"\x00" * limit_bytes
+        r = upload_file(client, session_id, oversized, "big.pdf")
+        assert r.status_code == 413
+
 
 # ── CAT-04: Session UUID ──────────────────────────────────────────────────────
 
@@ -167,7 +175,7 @@ class TestSessionUUID:
         assert r2.status_code == 200
 
 
-# ── CAT-05: Mutation tests ────────────────────────────────────────────────────
+# ── CAT-12: Mutation tests ────────────────────────────────────────────────────
 
 class TestMutations:
     """Each test mutates exactly one property of a valid request and checks the result."""
@@ -175,21 +183,21 @@ class TestMutations:
     # ── File content/extension mismatch ──
 
     def test_MUT01_pdf_extension_image_bytes(self, client, session_id, text_png_bytes):
-        """MUT01 — PNG bytes sent with .pdf filename → no 500 regardless of validation strategy.
+        """MUT01 — PNG bytes sent with .pdf filename → no 500.
 
-        Weak assertion ("not 500") is intentional: the server routes by extension, so
-        PNG bytes with .pdf extension go through the PDF path. Whether it returns 200
-        (with empty/garbage text) or 4xx is unspecified — the key check is no crash.
+        The server routes by magic bytes first, then by extension: these bytes are not
+        a PDF and the extension is not an image extension, so the file is rejected
+        with 422. The assertion is the weaker "not 500" — the key check is no crash.
         """
         r = upload_file(client, session_id, text_png_bytes, "fake.pdf", "application/pdf")
         assert r.status_code != 500
 
     def test_MUT02_image_extension_pdf_bytes(self, client, session_id, text_pdf_bytes):
-        """MUT02 — PDF bytes sent with .png filename → no 500 regardless of validation strategy.
+        """MUT02 — PDF bytes sent with .png filename → no 500.
 
-        Server routes by extension (.png → OCR path). EasyOCR on PDF bytes may produce
-        garbage text and return 200, or it may return 4xx — either is acceptable.
-        Known issue: server previously 500'd on this path; "not 500" is the regression guard.
+        The server routes by magic bytes first, so these bytes go to the PDF path
+        despite the .png extension. The first version routed by extension only and
+        returned 500 here; "not 500" is the regression guard.
         """
         r = upload_file(client, session_id, text_pdf_bytes, "fake.png", "image/png")
         assert r.status_code != 500

@@ -6,6 +6,7 @@ doc/ASSIGNMENT.md
 doc/SPEC.md
 doc/CHANGES.md
 doc/TEST_CONTRACT.md
+doc/TESTING_METHODOLOGY.md
 
 Source code
 
@@ -17,17 +18,23 @@ pipeline/embedder.py
 pipeline/retriever.py
 llm/backend.py
 session/store.py
+prompts/qa_prompt.txt
 app.py
 
 Config
 
 .env.example
 requirements.txt
+.streamlit/config.toml
+Dockerfile
+docker-compose.yml
+.dockerignore
 
 Tests
 
 tests/TESTING.md
 tests/test_spec.csv
+tests/pytest.ini
 tests/conftest.py
 tests/test_upload.py
 tests/test_ask.py

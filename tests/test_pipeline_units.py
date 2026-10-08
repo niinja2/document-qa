@@ -67,7 +67,7 @@ class TestExtractor:
         assert len(result.strip()) > 0
 
     def test_supported_and_unsupported_file_types(self, tmp_path):
-        """CW vs CCW: PDF path ≠ unsupported path in extractor behaviour."""
+        """Unsupported extension raises instead of silently returning empty text."""
         from ingestion import extractor
         bad_path = str(tmp_path / "file.xyz")
         with open(bad_path, "wb") as f:
@@ -134,7 +134,7 @@ class TestChunker:
         import math
         text = make_text(10_000)
         result = self.chunk_text(text)
-        expected = math.ceil((10_000 - CHUNK_OVERLAP) / (CHUNK_SIZE - CHUNK_OVERLAP))
+        expected = math.ceil(10_000 / CHUNK_STEP)
         assert len(result) == expected, (
             f"Expected {expected} chunks for 10 000 words, got {len(result)}"
         )
@@ -237,7 +237,7 @@ class TestRetriever:
         assert "doc_id" in results[0]
 
     def test_retrieve_k_greater_than_n(self, small_index_and_chunks):
-        """MUT-04: TOP_K=5 on 3 chunks must not crash — returns at most 3 results."""
+        """TOP_K=5 on 3 chunks must not crash — returns at most 3 results."""
         index, chunks = small_index_and_chunks
         results = self.retrieve("Alpha", index, chunks)
         assert len(results) <= len(chunks)

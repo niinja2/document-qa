@@ -3,7 +3,7 @@ _sessions = {}
 
 def save(
     session_id: str,
-    chunks: list[str],
+    chunks: list[dict],
     index,
 ) -> None:
     _sessions[session_id] = {

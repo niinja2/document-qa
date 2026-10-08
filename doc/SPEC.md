@@ -79,7 +79,7 @@ extractor.py(file_path)
 
 - `POST /upload` — accepts one file + session UUID (multipart form). Saves to temp, extracts text, removes temp file. Chunks text, embeds chunks, builds FAISS index, stores in RAM.
 - `POST /ask` — accepts session UUID + question (form). Embeds question, retrieves top-5 chunks via FAISS, sends labeled context to LLM, returns answer.
-- Startup warmup — embedding model pre-loaded on server start via `lifespan`.
+- Startup warmup — embedding model and EasyOCR reader pre-loaded on server start via `lifespan`.
 - Rate limiting via slowapi — `RATE_LIMIT_UPLOAD` and `RATE_LIMIT_ASK` (configured in `.env`). Returns HTTP 429 if exceeded.
 - JSON structured logging to terminal and log file (default: system temp dir, overridable via `LOG_FILE` env var).
 
@@ -88,12 +88,12 @@ extractor.py(file_path)
 - PDF: PyMuPDF for text layer, EasyOCR for embedded images
 - Images: EasyOCR
 - Magic bytes check (`%PDF`) — routes by actual content, not file extension
-- Lazy-loaded OCR reader (loaded on first use)
+- OCR reader is created once behind a lock; the server warms it up at startup, so it is loaded on first use only when the extractor is called outside the server (e.g. unit tests)
 
 ### RAG Pipeline — pipeline/
 
 - `chunker.py` — splits text into 350-word chunks with 50-word overlap
-- `embedder.py` — BGE-base-en-v1.5 (768-dim), lazy-loaded, L2-normalized embeddings
+- `embedder.py` — BGE-base-en-v1.5 (768-dim), L2-normalized embeddings; model created once behind a lock and warmed up at server startup
 - `retriever.py` — FAISS IndexFlatIP cosine search, returns top-K chunks as `{"text": ..., "doc_id": filename}`
 
 ### Session Storage — session/store.py

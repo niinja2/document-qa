@@ -87,12 +87,13 @@ class TestQuestionDimension:
         assert "answer" in r.json()
 
     def test_T030_xss_payload_in_question(self, client):
-        """T030 — XSS payload → returned as text/escaped, not executed."""
+        """T030 — XSS payload → treated as plain text, no crash.
+
+        Checks the status code only; the response is JSON, and the test does not
+        inspect how the payload appears in the answer.
+        """
         r = ask(client, self.sid, "<script>alert(document.cookie)</script>")
         assert r.status_code == 200
-        # Response body should not contain raw unescaped <script> as executable HTML
-        # (acceptable: returned as escaped string in JSON)
-        assert r.status_code != 500
 
     def test_empty_and_normal_produce_different_results(self, client):
         """Verify empty question and non-empty question have different response behaviour."""

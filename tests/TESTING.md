@@ -1,6 +1,6 @@
 # Document QA — Test Suite
 
-Black-box API tests for the Document QA backend. All tests hit a live server over HTTP — no mocking, no test client.
+Black-box API tests for the Document QA backend, plus unit tests. The API tests hit a live server over HTTP — no mocking, no test client. The unit tests (`test_pipeline_units.py`, `test_store.py`) call the code directly and do not need the server.
 
 ## Prerequisites
 
@@ -51,6 +51,8 @@ Then run only the rate limit file:
 
 > **Note:** T041 waits ~62 seconds for the rate limit window to reset — this is expected. Total run time is ~90 seconds.
 
+> **Note:** T040 and T041 send requests one by one and skip themselves if no 429 appears. With a model that takes more than about 2 seconds per answer, 30 requests do not fit into one minute, the default limit is never reached, and both tests are skipped. To exercise the limit with a slower model, start the server with a lower limit, for example `$env:RATE_LIMIT_ASK = "5/minute"`.
+
 ---
 
 ## Test structure
@@ -60,7 +62,7 @@ Then run only the rate limit file:
 | T001–T003 | `test_upload.py` | Supported file types (PDF, PNG, JPG) accepted → 200 |
 | T004–T006 | `test_upload.py` | Unsupported types (exe, docx, csv) rejected → 4xx |
 | T007–T010 | `test_upload.py` | File count — no file, one file, sequential uploads |
-| T011–T013 | `test_upload.py` | File state — empty, corrupt, normal size |
+| T011–T014 | `test_upload.py` | File size — empty, corrupt, normal size, over the limit |
 | T016–T020 | `test_upload.py` | Session UUID — missing, empty, valid, malformed, re-upload |
 | MUT01–MUT12 | `test_upload.py` | Mutation tests — mismatched types, null bytes, duplicate fields |
 | T021–T030 | `test_ask.py` | Ask pre-conditions and question content — 404, 422, injections, edge cases |
@@ -70,6 +72,8 @@ Then run only the rate limit file:
 | T039–T041 | `test_z_rate_limit.py` | Rate limiting — normal request, burst triggers 429, cooldown recovery |
 | T042–T050 | `test_pipeline_units.py` | Unit tests — extractor, chunker, embedder, retriever |
 | TS01–TS03 | `test_store.py` | Session store — save/load, unknown UUID, overwrite |
+
+85 test functions in total: 71 with IDs (listed below by ID) and 14 without IDs (listed at the end).
 
 ## Full test list
 
@@ -93,13 +97,14 @@ Then run only the rate limit file:
 | T009 | Two sequential uploads to same session → both 200 |
 | T010 | Five sequential uploads to same session → all 200, no crash |
 
-### /upload — File Size (T011–T013)
+### /upload — File Size (T011–T014)
 
 | ID | Description |
 |----|-------------|
 | T011 | Empty file (0 bytes) → 422, size guard fires before PyMuPDF |
 | T012 | Corrupt 1-byte file → 422, size guard fires before PyMuPDF |
 | T013 | Normal size PDF → 200 |
+| T014 | File just over `MAX_FILE_SIZE_MB` → 413 |
 
 ### /upload — Session UUID (T016–T020)
 
@@ -122,9 +127,9 @@ Then run only the rate limit file:
 | T025 | Whitespace-only question → 4xx or graceful, not 500 |
 | T026 | Normal question about document content → 200, non-empty answer |
 | T027 | Very long question (>2000 chars) → 200 or 4xx, not 500 |
-| T028 | Question about content not in document → 200, LLM says not found |
+| T028 | Question about content not in document → 200 with an `answer` key (wording of the answer not asserted) |
 | T029 | SQL injection in question → 200, treated as plain text |
-| T030 | XSS payload in question → 200, returned as escaped JSON |
+| T030 | XSS payload in question → 200, no crash |
 
 ### Integration — End-to-End (T031–T038)
 
@@ -136,8 +141,8 @@ Then run only the rate limit file:
 | T034 | Two sessions — session A cannot see session B's content |
 | T035 | Three sequential questions same session → all 200, no state bleed |
 | T036 | Ask with unknown UUID → 4xx (simulates post-restart state) |
-| T037 | Two concurrent uploads different sessions → both 200, no data mixing |
-| T038 | No OpenRouter key → 500 error (DistilBERT fallback removed) |
+| T037 | Two concurrent uploads different sessions → both 200 |
+| T038 | OpenRouter key configured → upload then ask returns 200 with a non-empty answer |
 
 ### Cascade — State Interaction (TC01–TC07)
 
@@ -145,11 +150,11 @@ Then run only the rate limit file:
 |----|-------------|
 | TC01 | Valid upload → empty upload (422) → ask → index not wiped |
 | TC02 | Valid upload → unsupported upload (422) → ask → index survives |
-| TC03 | Valid upload → re-upload different PDF → ask → index updated |
+| TC03 | Valid upload → re-upload different PDF → ask → 200, non-empty answer |
 | TC04 | PNG upload → PDF upload → both succeed → ask returns answer |
 | TC05 | Failed upload → recovery valid upload → ask → session recovers |
 | TC06 | Ask on empty session (404) → upload → ask → no broken state |
-| TC07 | PDF + PNG session → off-topic question → LLM says not found |
+| TC07 | PDF + PNG session → off-topic question → 200, non-empty answer (wording not asserted) |
 
 ### Mutation — Single-Property Changes (MUT01–MUT12)
 
@@ -182,7 +187,7 @@ Then run only the rate limit file:
 | T040 | 35 sequential /ask requests → 429 triggered within window |
 | T041 | Burst triggers 429, wait 62s cooldown → back to 200 |
 
-### Unit — Extractor, Chunker, Store (T042–TS03)
+### Unit — Extractor, Chunker, Store (T042–TS03; T045 was deleted)
 
 | ID | Description |
 |----|-------------|
@@ -198,9 +203,28 @@ Then run only the rate limit file:
 | TS02 | Store: load unknown UUID returns None, not KeyError |
 | TS03 | Store: overwrite same UUID — second save replaces first |
 
+### Tests without IDs
+
+| File | Test | Description |
+|------|------|-------------|
+| `test_upload.py` | `test_supported_and_unsupported_produce_different_status` | Supported PDF → 200, unsupported .exe → 4xx |
+| `test_ask.py` | `test_empty_and_normal_produce_different_results` | Empty and normal question do not return identical 200 responses |
+| `test_pipeline_units.py` | `test_supported_and_unsupported_file_types` | Extractor raises on an unsupported extension |
+| `test_pipeline_units.py` | `test_chunk_sizes_are_at_most_chunk_size_words` | No chunk exceeds `CHUNK_SIZE` words |
+| `test_pipeline_units.py` | `test_embed_returns_shape_n_768` | Two texts → array of shape (2, 768) |
+| `test_pipeline_units.py` | `test_embed_single_item_list` | One text → array of shape (1, 768) |
+| `test_pipeline_units.py` | `test_embed_normalized` | Embedding rows are L2-normalized |
+| `test_pipeline_units.py` | `test_same_input_same_output` | Same input → identical embeddings |
+| `test_pipeline_units.py` | `test_different_inputs_different_outputs` | Different sentences → different embeddings |
+| `test_pipeline_units.py` | `test_retrieve_returns_list_of_dicts` | Retriever returns dicts with `text` and `doc_id` |
+| `test_pipeline_units.py` | `test_retrieve_k_greater_than_n` | `TOP_K` larger than the number of chunks does not crash |
+| `test_pipeline_units.py` | `test_retrieve_most_similar_first` | Closest chunk is ranked first |
+| `test_store.py` | `test_different_uuids_do_not_collide` | Distinct UUIDs keep distinct data |
+| `test_store.py` | `test_uuid_string_accepted` | Store accepts the UUID as a plain string |
+
 ## Notes
 
 - **Rate limit tests** (`@pytest.mark.rate_limit`, file `test_z_rate_limit.py`) run against the server with **default limits** (`.env` values, no env var overrides). Run them separately as described above. The `z_` prefix forces alphabetical ordering so these tests run last and don't pollute the rate limit window for other tests. The file was renamed from `test_rate_limit.py` for this reason.
-- **T038** (no OpenRouter key) — DistilBERT fallback has been removed. Running without `OPENROUTER_API_KEY` now returns 500. T038 as written only checks for 200 + non-empty answer, so it will fail in this configuration — skip it or update the assertion if testing the error path.
+- **T038** checks the configured path only: with `OPENROUTER_API_KEY` set, `/ask` returns 200 and a non-empty answer. The DistilBERT fallback has been removed, so a server started without the key returns 500 on `/ask`; that error path has no test, and T038 fails against such a server.
 - Tests run against whatever server is at `localhost:8000` — start it before running pytest.
 - **To skip rate limit tests** in the main suite run: `.venv\Scripts\python.exe -m pytest tests\ --ignore=tests\test_z_rate_limit.py -v` (already the recommended command above).

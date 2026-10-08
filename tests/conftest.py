@@ -63,20 +63,6 @@ def text_pdf_bytes():
 
 
 @pytest.fixture(scope="session")
-def large_text_pdf_bytes():
-    """PDF with >500 words to exercise chunker boundary."""
-    import pymupdf as fitz
-    doc = fitz.open()
-    page = doc.new_page()
-    # ~600 distinct words
-    words = " ".join(f"word{i}" for i in range(600))
-    page.insert_text((72, 72), words, fontsize=6)
-    buf = io.BytesIO()
-    doc.save(buf)
-    return buf.getvalue()
-
-
-@pytest.fixture(scope="session")
 def blank_pdf_bytes():
     """PDF with pages but no content (empty text layer, no images)."""
     import pymupdf as fitz
@@ -85,12 +71,6 @@ def blank_pdf_bytes():
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
-
-
-@pytest.fixture(scope="session")
-def corrupt_pdf_bytes():
-    """One byte — not a valid PDF."""
-    return b"\x00"
 
 
 @pytest.fixture(scope="session")
@@ -115,18 +95,6 @@ def text_jpg_bytes():
     buf = io.BytesIO()
     img.save(buf, format="JPEG")
     return buf.getvalue()
-
-
-# ── Real test docs (committed to repo) ───────────────────────────────────────
-
-@pytest.fixture(scope="session")
-def benchmark_pdf_path():
-    return "test_docs/Embedding Model Retrieval Benchmark.pdf"
-
-
-@pytest.fixture(scope="session")
-def design_notes_pdf_path():
-    return "test_docs/Retrieval_Quality_Design_Notes.pdf"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
