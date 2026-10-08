@@ -88,10 +88,10 @@ def make_text(n_words: int) -> str:
 
 
 class TestChunker:
-    """pipeline/chunker.py — 500-word chunks, 50-word overlap.
+    """pipeline/chunker.py — CHUNK_SIZE-word chunks, CHUNK_OVERLAP-word overlap.
 
-    Sliding window: chunks start at 0, 450, 900, ...
-    So a new chunk is created whenever text exceeds CHUNK_STEP (450) words.
+    Sliding window: chunks start at 0, CHUNK_STEP, 2 * CHUNK_STEP, ...
+    So a new chunk is created whenever text exceeds CHUNK_STEP words.
     """
 
     @pytest.fixture(autouse=True)
@@ -109,23 +109,24 @@ class TestChunker:
         assert result == [] or (len(result) == 1 and self._text(result[0]).strip() == "")
 
     def test_T047_under_limit(self):
-        """T047 — 449 words (< CHUNK_STEP) → exactly 1 chunk."""
-        result = self.chunk_text(make_text(449))
+        """T047 — CHUNK_STEP - 1 words → exactly 1 chunk."""
+        result = self.chunk_text(make_text(CHUNK_STEP - 1))
         assert len(result) == 1
 
     def test_T048_at_boundary(self):
-        """T048 — Exactly 450 words (= CHUNK_STEP) → exactly 1 chunk."""
-        result = self.chunk_text(make_text(450))
+        """T048 — Exactly CHUNK_STEP words → exactly 1 chunk."""
+        result = self.chunk_text(make_text(CHUNK_STEP))
         assert len(result) == 1
 
     def test_T049_one_over_boundary(self):
-        """T049 — 451 words (CHUNK_STEP + 1) → 2 chunks; second starts at word 450."""
-        text = make_text(451)
+        """T049 — CHUNK_STEP + 1 words → 2 chunks; second starts at word CHUNK_STEP."""
+        text = make_text(CHUNK_STEP + 1)
         result = self.chunk_text(text)
         assert len(result) == 2, f"Expected 2 chunks, got {len(result)}"
         second = self._text(result[1])
-        assert second.startswith("word450"), (
-            f"Overlap wrong: chunk[1] starts with {second[:20]!r}, expected 'word450'"
+        expected_start = f"word{CHUNK_STEP}"
+        assert second.startswith(expected_start), (
+            f"Overlap wrong: chunk[1] starts with {second[:20]!r}, expected {expected_start!r}"
         )
 
     def test_T050_large_text(self):

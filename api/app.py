@@ -75,13 +75,16 @@ def upload(
     tmp.close()
     tmp_path = tmp.name
 
+    error_detail = None
     try:
         text = extractor.extract(tmp_path)
     except Exception as e:
-        os.remove(tmp_path)
-        raise HTTPException(status_code=422, detail=str(e))
+        error_detail = str(e)
 
     os.remove(tmp_path)
+
+    if error_detail is not None:
+        raise HTTPException(status_code=422, detail=error_detail)
 
     if not text.strip():
         raise HTTPException(status_code=422, detail=f"Could not extract text from {file.filename}")

@@ -46,19 +46,19 @@ class TestFileType:
 
     def test_T004_exe_rejected(self, client, session_id):
         """T004 — .exe binary → 4xx unsupported type error."""
-        r = upload_file(client, session_id, b"MZ\x90\x00fake", "malware.exe", "application/octet-stream")
+        r = upload_file(client, session_id, b"MZ\x90\x00fake" + b"\x00" * 200, "malware.exe", "application/octet-stream")
         assert r.status_code >= 400
 
     def test_T005_docx_rejected(self, client, session_id):
         """T005 — .docx (not in spec) → 422. Bug if server crashes instead."""
         _upload_expect_4xx(
-            client, session_id, b"PK\x03\x04fakecontent", "doc.docx",
+            client, session_id, b"PK\x03\x04fakecontent" + b"\x00" * 200, "doc.docx",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
 
     def test_T006_csv_rejected(self, client, session_id):
         """T006 — .csv plaintext → 4xx unsupported type error."""
-        r = upload_file(client, session_id, b"id,name\n1,Alice", "data.csv", "text/csv")
+        r = upload_file(client, session_id, b"id,name\n" + b"1,Alice\n" * 30, "data.csv", "text/csv")
         assert r.status_code >= 400
 
     def test_supported_and_unsupported_produce_different_status(
@@ -68,7 +68,7 @@ class TestFileType:
         sid_good = str(uuid.uuid4())
         sid_bad  = str(uuid.uuid4())
         good = upload_file(client, sid_good, text_pdf_bytes, "ok.pdf")
-        bad  = upload_file(client, sid_bad,  b"MZ\x90fake", "bad.exe", "application/octet-stream")
+        bad  = upload_file(client, sid_bad,  b"MZ\x90fake" + b"\x00" * 200, "bad.exe", "application/octet-stream")
         assert good.status_code == 200
         assert bad.status_code >= 400
         assert good.status_code != bad.status_code
@@ -205,9 +205,9 @@ class TestMutations:
     def test_MUT04_valid_header_truncated_body(self, client, session_id):
         """MUT04 — File starts with valid %PDF header but body is truncated garbage.
 
-        Passes the size guard (>4 bytes) but should fail extraction gracefully → 4xx not 500.
+        Passes the size guard (>= 100 bytes) but should fail extraction gracefully → 4xx not 500.
         """
-        truncated = b"%PDF-1.4\n" + b"\x00\xff" * 10
+        truncated = b"%PDF-1.4\n" + b"\x00\xff" * 100
         _upload_expect_4xx(client, session_id, truncated, "truncated.pdf")
 
     # ── Session ID mutations ──

@@ -47,7 +47,7 @@ TC07,Cascade,Mixed-type session then off-topic question,upload PDF + PNG then as
 MUT01,Mutation,PNG bytes sent with .pdf filename,"PNG bytes, filename=fake.pdf, content-type=application/pdf",No 500 — reveals if server validates by extension or magic bytes,PASS
 MUT02,Mutation,PDF bytes sent with .png filename,"PDF bytes, filename=fake.png, content-type=image/png",No 500 — reveals if server validates by extension or magic bytes,PASS
 MUT03,Mutation,Valid PDF bytes but Content-Type claims image/png,"PDF bytes, correct filename, wrong content-type",No 500 — reveals if server trusts Content-Type or inspects bytes,PASS
-MUT04,Mutation,Valid %PDF header but truncated body,"%PDF-1.4 + garbage bytes (>4B passes size guard)",422 · extraction fails gracefully,PASS
+MUT04,Mutation,Valid %PDF header but truncated body,"%PDF-1.4 + garbage bytes (>=100B passes size guard)",422 · extraction fails gracefully,PASS
 MUT05,Mutation,UUID with uppercase hex letters,session_id=<UUID4>.upper(),No 500 — UUIDs are case-insensitive,PASS
 MUT06,Mutation,UUID with extra characters appended,session_id=<uuid4>EXTRA,4xx or accepted — not 500,PASS
 MUT07,Mutation,Duplicate session_id fields in multipart,Two session_id values in same request,No 500 — FastAPI takes first or last value,PASS
@@ -65,10 +65,10 @@ T043,Unit,Extractor: blank PDF — no text,extract_pdf(blank_pdf),empty string o
 T044,Unit,Extractor: PNG image → EasyOCR,extract_image(text.png),str · len > 0,PASS
 T045,Unit,DELETED — duplicate label,—,—,DELETED
 T046,Unit,Chunker: empty string,chunk_text(""),[] — no crash,PASS
-T047,Unit,Chunker: 449 words (below CHUNK_STEP),449 words,1 chunk,PASS
-T048,Unit,Chunker: 450 words (at CHUNK_STEP boundary),450 words,1 chunk,PASS
-T049,Unit,Chunker: 451 words (one over boundary),451 words,2 chunks · chunk[1] starts at word450,BOUNDARY
-T050,Unit,Chunker: 10000 words — chunk count,10000 words,ceil((10000-50)/450) = 23 chunks,PASS
+T047,Unit,Chunker: 299 words (below CHUNK_STEP),299 words,1 chunk,PASS
+T048,Unit,Chunker: 300 words (at CHUNK_STEP boundary),300 words,1 chunk,PASS
+T049,Unit,Chunker: 301 words (one over boundary),301 words,2 chunks · chunk[1] starts at word300,BOUNDARY
+T050,Unit,Chunker: 10000 words — chunk count,10000 words,ceil((10000-50)/300) = 34 chunks,PASS
 TS01,Unit,Store: save then load returns same data,"save(sid, chunks, index) then load(sid)",dict with same chunks and index objects,PASS
 TS02,Unit,Store: load unknown UUID returns None,load(never-saved-uuid),None — not KeyError crash,PASS
 TS03,Unit,Store: overwrite same UUID,save twice with same UUID,second save replaces first,PASS

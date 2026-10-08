@@ -1,6 +1,6 @@
 import os
 
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "500"))
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "350"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "50"))
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-base-en-v1.5")
 TOP_K = int(os.getenv("TOP_K", "5"))

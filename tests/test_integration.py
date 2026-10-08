@@ -197,7 +197,7 @@ class TestCascades:
         """TC02 — Good index → rejected unsupported file → index survives rejection."""
         sid = str(uuid.uuid4())
         upload_file(client, sid, text_pdf_bytes, "doc.pdf")
-        upload_file(client, sid, b"PK\x03\x04fake", "file.docx",
+        upload_file(client, sid, b"PK\x03\x04fake" + b"\x00" * 200, "file.docx",
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         r = ask(client, sid, "What is in this document?")
         assert r.status_code == 200, "Index was wiped by a rejected unsupported file"

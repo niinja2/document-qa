@@ -30,7 +30,7 @@ Base URL: `http://localhost:8000`
 **Behavior:**
 
 - Uploading with the same `session_id` overwrites the previous session
-- Text is chunked at 500 words with 50-word overlap (configurable via env)
+- Text is chunked at 350 words with 50-word overlap (configurable via env)
 - TOP_K = 5 chunks retrieved per question (configurable via env)
 
 ---
@@ -56,7 +56,9 @@ Base URL: `http://localhost:8000`
 | `404` | Session not found — upload a document first |
 | `422` | Missing required field |
 | `429` | Rate limit exceeded |
-| `500` | LLM or pipeline error |
+| `500` | Missing LLM configuration (`OPENROUTER_API_KEY` or `OPENROUTER_MODEL`) |
+| `502` | LLM service error or unreachable |
+| `504` | LLM service timed out |
 
 **Session behavior:**
 
@@ -108,5 +110,5 @@ store.load(session_id: str) -> dict | None   # {"chunks": [...], "index": ...} o
 ## Notes for QA
 
 - Tests run against a **live server** at `localhost:8000` — start it before running pytest
-- Rate limit tests require a **separate server run** with default limits — see `tests/README.md`
+- Rate limit tests require a **separate server run** with default limits — see `tests/TESTING.md`
 - DistilBERT fallback has been **removed** — `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` must both be set in `.env`

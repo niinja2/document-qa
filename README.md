@@ -4,6 +4,10 @@ A REST API that extracts text from uploaded documents (PDF, images) and answers 
 
 Built with FastAPI + Streamlit frontend. Runs locally or via Docker.
 
+## Status
+
+Work in progress. The retrieval pipeline works end to end, but storage is in memory only: sessions never expire and are lost on restart. The service runs as a single process and is currently intended for 2–3 concurrent users.
+
 ---
 
 ## What it does
@@ -37,6 +41,8 @@ OPENROUTER_API_KEY=your_key_here
 OPENROUTER_MODEL=mistralai/ministral-3b-2410
 ```
 
+> **Note:** a system-level `OPENROUTER_API_KEY` environment variable takes precedence over `.env` (`load_dotenv` does not override existing variables). If `/ask` returns 502 and the log shows a 401 from OpenRouter, check for a stale variable in your environment. This does not affect the Docker setup, where the containers read only `.env`.
+
 Start the API:
 
 ```bash
@@ -54,6 +60,8 @@ Open `http://localhost:8501`.
 ### Docker
 
 **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
+
+> **Disk space:** the Docker build needs about 30 GB of free space (image ~12 GB, build cache ~12 GB, plus virtual disk overhead). The cache can be removed afterwards with `docker builder prune`.
 
 **1. Clone the repo**
 ```bash
@@ -120,7 +128,7 @@ Response:
 {"answer": "The total contract value is $45,000, as stated in Section 3.2 of [contract.pdf]."}
 ```
 
-Error codes: `404` session not found (upload first), `422` missing field, `429` rate limit, `500` LLM error.
+Error codes: `404` session not found (upload first), `422` missing field, `429` rate limit, `500` missing LLM configuration, `502` LLM service error or unreachable, `504` LLM timeout.
 
 ---
 
@@ -151,7 +159,7 @@ Out of the general optional enhancements, we implemented a Streamlit UI, structu
 Two-process system: FastAPI backend + Streamlit frontend. Both containerised via Docker Compose.
 
 RAG pipeline:
-- **Chunker** — 500-word chunks, 50-word overlap
+- **Chunker** — 350-word chunks, 50-word overlap (reduced from 500 so that a chunk is expected to fit the embedding model's 512-token input; an estimate, not measured)
 - **Embedder** — `BAAI/bge-base-en-v1.5` (768-dim, L2-normalized), via `sentence-transformers`
 - **Index** — FAISS `IndexFlatIP` (cosine similarity on normalized vectors)
 - **Retriever** — top-5 chunks by cosine score, filtered by `RETRIEVAL_THRESHOLD`
@@ -162,7 +170,7 @@ The architecture follows naturally from the two endpoints:
 - `POST /upload`: extract text → chunk → embed → index → store in session
 - `POST /ask`: embed question → retrieve top chunks → label by source → send to LLM → return answer
 
-Text extraction routes by magic bytes — if the file starts with `%PDF` it goes to PyMuPDF (with EasyOCR for embedded images), everything else goes to EasyOCR directly. A PDF sent with a `.png` extension is handled correctly; a JPEG sent with a `.pdf` extension fails cleanly instead of crashing.
+Text extraction routes by magic bytes — if the file starts with `%PDF` it goes to PyMuPDF (with EasyOCR for embedded images), files with a supported image extension go to EasyOCR, and anything else is rejected with 422. A PDF sent with a `.png` extension is handled correctly; a JPEG sent with a `.pdf` extension fails cleanly instead of crashing.
 
 Sessions are stored in RAM, keyed by UUID. One FAISS index per session. No persistence across restarts.
 
@@ -214,7 +222,7 @@ The tester needed to be independent because code context is a lens. A tester tha
 
 The methodology had four steps: map every feature and boundary; fill edge cases (at the limit, just below, just above); add cascade tests — sequences of operations that might pass individually but fail together; and mutation tests — single-property changes to valid requests. This produced an initial suite of ~50 tests.
 
-Several rounds of back and forth followed. Bugs were found — some at the C level inside PyMuPDF and EasyOCR, fixed by adding safeguards in the Python layer above. Rate limit tests revealed that rate limit values needed to be environment variables so they could be overridden during testing. The final suite was 83 tests.
+Several rounds of back and forth followed. Bugs were found, and safeguards were added in the Python layer above PyMuPDF and EasyOCR. Rate limit tests revealed that rate limit values needed to be environment variables so they could be overridden during testing. The final suite was 84 tests.
 
 Once isolated from the code, the tester has to derive everything from the contract. That's both the strength and the risk — if the contract is wrong, the tester's assumptions are wrong. The multi-file example illustrates this: the original contract described `/upload` as accepting files (plural). The tester wrote multi-file tests accordingly. When multi-file was reverted in the implementation, those tests broke. The tester had no way to know — it only knew what the contract said. The contract was amended and re-sent. The mismatch was visible precisely because the tester was isolated: it couldn't silently absorb the implementation change the way a code-aware tester would.
 
@@ -243,6 +251,8 @@ Key variables:
 | `TOP_K` | 5 | Chunks retrieved per question |
 | `RATE_LIMIT_UPLOAD` | 10/minute | Per-IP upload rate limit |
 | `RATE_LIMIT_ASK` | 30/minute | Per-IP ask rate limit |
+
+Rate limits are keyed by client IP. Requests made through the Streamlit UI all reach the API from the frontend process, so UI users share one limit.
 
 ---
 

@@ -55,7 +55,7 @@ this is a non-issue.
 **Why skipped:** `CHUNK_SIZE` and `CHUNK_OVERLAP` are system-level configuration values set by
 whoever deploys the application — not end users. Anyone setting `CHUNK_OVERLAP >= CHUNK_SIZE`
 has misconfigured the system and will observe the hang immediately on first upload. The default
-values (`CHUNK_SIZE=500`, `CHUNK_OVERLAP=50`) are safe. Adding an assert is low effort but the
+values (`CHUNK_SIZE=350`, `CHUNK_OVERLAP=50`) are safe. Adding an assert is low effort but the
 failure mode is obvious and self-correcting for the operator.
 
 ---
@@ -253,7 +253,7 @@ PyMuPDF regardless of extension or Content-Type. A PNG with a `.pdf` extension c
 ---
 
 ## TC01–TC07 — Failed upload no longer wipes existing session index
-**File:** `api/app.py:95`
+**File:** `api/app.py:98`
 
 **Problem:** When a second upload to the same session failed (empty file, unsupported type,
 extraction error), the server was calling `store.save()` with an empty or partial result,

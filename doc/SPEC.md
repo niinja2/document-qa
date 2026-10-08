@@ -17,7 +17,7 @@ FastAPI
     │
 extractor.py (PyMuPDF / EasyOCR)
     │ text
-chunker.py → 500-word chunks, 50-word overlap
+chunker.py → 350-word chunks, 50-word overlap
     │ chunks
 embedder.py → BGE-base-en-v1.5 embeddings (768-dim, normalized)
     │ embeddings
@@ -92,7 +92,7 @@ extractor.py(file_path)
 
 ### RAG Pipeline — pipeline/
 
-- `chunker.py` — splits text into 500-word chunks with 50-word overlap
+- `chunker.py` — splits text into 350-word chunks with 50-word overlap
 - `embedder.py` — BGE-base-en-v1.5 (768-dim), lazy-loaded, L2-normalized embeddings
 - `retriever.py` — FAISS IndexFlatIP cosine search, returns top-K chunks as `{"text": ..., "doc_id": filename}`
 
@@ -122,7 +122,7 @@ All values read from environment variables (`.env`), with defaults:
 
 | Variable | Default |
 |---|---|
-| `CHUNK_SIZE` | 500 |
+| `CHUNK_SIZE` | 350 |
 | `CHUNK_OVERLAP` | 50 |
 | `EMBEDDING_MODEL` | BAAI/bge-base-en-v1.5 |
 | `TOP_K` | 5 |

@@ -190,10 +190,10 @@ Then run only the rate limit file:
 | T043 | Blank PDF extraction → empty string or known exception, not crash |
 | T044 | PNG image extraction via EasyOCR → non-empty string |
 | T046 | Chunker: empty string → empty list |
-| T047 | Chunker: 449 words → 1 chunk |
-| T048 | Chunker: 450 words → 1 chunk |
-| T049 | Chunker: 451 words → 2 chunks, second starts at word450 |
-| T050 | Chunker: 10000 words → 23 chunks |
+| T047 | Chunker: CHUNK_STEP − 1 words (299 at defaults) → 1 chunk |
+| T048 | Chunker: CHUNK_STEP words (300 at defaults) → 1 chunk |
+| T049 | Chunker: CHUNK_STEP + 1 words (301 at defaults) → 2 chunks, second starts at word300 |
+| T050 | Chunker: 10000 words → 34 chunks at defaults |
 | TS01 | Store: save then load returns same data |
 | TS02 | Store: load unknown UUID returns None, not KeyError |
 | TS03 | Store: overwrite same UUID — second save replaces first |
