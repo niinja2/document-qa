@@ -111,7 +111,7 @@ Response:
 {"status": "ok"}
 ```
 
-Error codes: `413` file too large, `422` unsupported type / empty file / extraction failed, `429` rate limit.
+Error codes: `413` file too large, `422` file too small / unsupported type / extraction failed / empty text, `429` rate limit, `500` unexpected server error.
 
 ### POST /ask
 
@@ -216,7 +216,7 @@ Started from the assignment requirements. The architecture was designed first �
 
 **2. Testing**
 
-Testing was not a requirement but was treated as one. The tester received the assignment, specification, test contract (`doc/TEST_CONTRACT.md`), evaluation criteria, and a testing methodology document. It had no access to the source code — by design.
+Testing was not a requirement but was treated as one. The tester received the assignment, specification, test contract (`doc/TEST_CONTRACT.md`), evaluation criteria, and a testing methodology document. It had no access to the source code — by design. (Later maintenance of the suite, after the review rounds, was done with code access.)
 
 The tester needed to be independent because code context is a lens. A tester that has read the source code inherits the developer's assumptions — it tests what the code does rather than what it was supposed to do. Separation guarantees a distinct context: everything the tester knows about the system comes from the spec and the contract, the same interface any external user would have. That's the only way to prevent the test from repeating the same assumptions the developer already made. This is grounded in personal research and a known failure mode in LLM-assisted testing.
 

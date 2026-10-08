@@ -1,7 +1,8 @@
 """
 Shared fixtures for Document QA test suite.
 
-Assumptions (spec-only, no code read):
+Assumptions (the suite was first written from the spec, without code access;
+later maintenance of the tests used the code):
   - FastAPI server at http://localhost:8000
   - POST /upload  multipart/form-data  fields: file, session_id (str)
   - POST /ask     form-data            fields: session_id (str), question (str)

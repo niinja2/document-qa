@@ -79,6 +79,9 @@ extractor.py(file_path)
 
 - `POST /upload` — accepts one file + session UUID (multipart form). Saves to temp, extracts text, removes temp file. Chunks text, embeds chunks, builds FAISS index, stores in RAM.
 - `POST /ask` — accepts session UUID + question (form). Embeds question, retrieves top-5 chunks via FAISS, sends labeled context to LLM, returns answer.
+- Both handlers are plain `def` functions, so FastAPI runs them on its threadpool.
+- `/upload` errors: 413 if the file exceeds `MAX_FILE_SIZE_MB`; 422 if it is under 100 bytes, of an unsupported type, fails extraction, or yields no text.
+- `/ask` errors: 404 unknown session; 504 LLM timeout; 502 LLM connection or HTTP error; 500 missing LLM configuration.
 - Startup warmup — embedding model and EasyOCR reader pre-loaded on server start via `lifespan`.
 - Rate limiting via slowapi — `RATE_LIMIT_UPLOAD` and `RATE_LIMIT_ASK` (configured in `.env`). Returns HTTP 429 if exceeded.
 - JSON structured logging to terminal and log file (default: system temp dir, overridable via `LOG_FILE` env var).
@@ -115,10 +118,11 @@ extractor.py(file_path)
 - Spinner on upload and on ask
 - Session UUID generated client-side, stored in `st.session_state`, sent with every request
 - `st.form` for question input — supports Enter key submission
+- On first load, polls the API's `/openapi.json` and shows a spinner until the API is ready
 
 ### Config — config.py
 
-All values read from environment variables (`.env`), with defaults:
+All values read from environment variables (`.env`), with defaults. `LOG_FILE` is the exception: it is read directly in `api/app.py`, not in `config.py`.
 
 | Variable | Default |
 |---|---|
@@ -143,6 +147,8 @@ All values read from environment variables (`.env`), with defaults:
 - Unsupported file type → 422
 - Empty or corrupt file (< 100 bytes) → 422, size guard fires before C-level libraries
 - Empty text after extraction → 422
+- File larger than `MAX_FILE_SIZE_MB` → 413
+- LLM timeout → 504; LLM connection or HTTP error → 502; missing LLM configuration → 500
 - PDF bytes sent with wrong extension → magic bytes check routes correctly
 - Rate limit exceeded → HTTP 429
 

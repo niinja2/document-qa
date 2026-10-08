@@ -48,7 +48,7 @@ class TestFileType:
     def test_T004_exe_rejected(self, client, session_id):
         """T004 — .exe binary → 4xx unsupported type error."""
         r = upload_file(client, session_id, b"MZ\x90\x00fake" + b"\x00" * 200, "malware.exe", "application/octet-stream")
-        assert r.status_code >= 400
+        assert 400 <= r.status_code < 500
 
     def test_T005_docx_rejected(self, client, session_id):
         """T005 — .docx (not in spec) → 422. Bug if server crashes instead."""
@@ -60,7 +60,7 @@ class TestFileType:
     def test_T006_csv_rejected(self, client, session_id):
         """T006 — .csv plaintext → 4xx unsupported type error."""
         r = upload_file(client, session_id, b"id,name\n" + b"1,Alice\n" * 30, "data.csv", "text/csv")
-        assert r.status_code >= 400
+        assert 400 <= r.status_code < 500
 
     def test_supported_and_unsupported_produce_different_status(
         self, client, text_pdf_bytes, text_png_bytes
@@ -71,8 +71,7 @@ class TestFileType:
         good = upload_file(client, sid_good, text_pdf_bytes, "ok.pdf")
         bad  = upload_file(client, sid_bad,  b"MZ\x90fake" + b"\x00" * 200, "bad.exe", "application/octet-stream")
         assert good.status_code == 200
-        assert bad.status_code >= 400
-        assert good.status_code != bad.status_code
+        assert 400 <= bad.status_code < 500
 
 
 # ── CAT-02: File Count ────────────────────────────────────────────────────────
@@ -108,11 +107,11 @@ class TestFileCount:
 class TestFileSize:
 
     def test_T011_empty_file(self, client, session_id):
-        """T011 — 0-byte file → 422 (contract: empty text = parse error). Bug if server 500s."""
+        """T011 — 0-byte file → 4xx (rejected by the size guard). Bug if server 500s."""
         _upload_expect_4xx(client, session_id, b"", "empty.pdf")
 
     def test_T012_corrupt_one_byte(self, client, session_id):
-        """T012 — 1-byte corrupt file → 422 (contract: parse error). Bug if server crashes."""
+        """T012 — 1-byte corrupt file → 4xx (rejected by the size guard). Bug if server crashes."""
         _upload_expect_4xx(client, session_id, b"\x00", "corrupt.pdf")
 
     def test_T013_normal_size(self, client, session_id, text_pdf_bytes):
@@ -151,7 +150,7 @@ class TestSessionUUID:
     def test_T017_empty_string_session_id(self, client, text_pdf_bytes):
         """T017 — Empty string session_id → rejected (4xx)."""
         r = upload_file(client, "", text_pdf_bytes, "a.pdf")
-        assert r.status_code >= 400
+        assert 400 <= r.status_code < 500
 
     def test_T018_valid_uuid4(self, client, text_pdf_bytes):
         """T018 — Well-formed UUID v4 → 200."""

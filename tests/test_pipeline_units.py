@@ -2,8 +2,8 @@
 Unit tests for the RAG pipeline components — CAT-09 and CAT-10.
 Tests: ingestion/extractor.py, pipeline/chunker.py, pipeline/embedder.py, pipeline/retriever.py
 
-Imports assume the project root is on sys.path (run pytest from project root or
-via pytest.ini / pyproject.toml with pythonpath = ".").
+Imports assume the project root is on sys.path (tests/pytest.ini sets
+pythonpath = "..", and the line below adds it as well).
 """
 import sys
 import os
@@ -144,7 +144,7 @@ class TestChunker:
         result = self.chunk_text(make_text(2000))
         for i, chunk in enumerate(result):
             word_count = len(self._text(chunk).split())
-            assert word_count <= CHUNK_SIZE + 5, (
+            assert word_count <= CHUNK_SIZE, (
                 f"Chunk {i} has {word_count} words, exceeds CHUNK_SIZE={CHUNK_SIZE}"
             )
 

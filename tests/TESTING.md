@@ -70,7 +70,8 @@ Then run only the rate limit file:
 | T039b | `test_integration.py` | LLM response format — no leaked error keys in response JSON |
 | TC01–TC07 | `test_integration.py` | Cascade tests — state interaction across multiple uploads and asks |
 | T039–T041 | `test_z_rate_limit.py` | Rate limiting — normal request, burst triggers 429, cooldown recovery |
-| T042–T050 | `test_pipeline_units.py` | Unit tests — extractor, chunker, embedder, retriever |
+| T042–T050 | `test_pipeline_units.py` | Unit tests — extractor, chunker |
+| (no IDs) | `test_pipeline_units.py` | Unit tests — embedder, retriever (listed under "Tests without IDs") |
 | TS01–TS03 | `test_store.py` | Session store — save/load, unknown UUID, overwrite |
 
 85 test functions in total: 71 with IDs (listed below by ID) and 14 without IDs (listed at the end).
@@ -139,7 +140,7 @@ Then run only the rate limit file:
 | T032 | PNG upload → OCR → ask → answer reflects OCR'd text |
 | T033 | PDF + PNG uploads then ask → both succeed, second replaces first, ask returns answer |
 | T034 | Two sessions — session A cannot see session B's content |
-| T035 | Three sequential questions same session → all 200, no state bleed |
+| T035 | Three sequential questions same session → all 200, non-empty answers |
 | T036 | Ask with unknown UUID → 4xx (simulates post-restart state) |
 | T037 | Two concurrent uploads different sessions → both 200 |
 | T038 | OpenRouter key configured → upload then ask returns 200 with a non-empty answer |
@@ -226,5 +227,6 @@ Then run only the rate limit file:
 
 - **Rate limit tests** (`@pytest.mark.rate_limit`, file `test_z_rate_limit.py`) run against the server with **default limits** (`.env` values, no env var overrides). Run them separately as described above. The `z_` prefix forces alphabetical ordering so these tests run last and don't pollute the rate limit window for other tests. The file was renamed from `test_rate_limit.py` for this reason.
 - **T038** checks the configured path only: with `OPENROUTER_API_KEY` set, `/ask` returns 200 and a non-empty answer. The DistilBERT fallback has been removed, so a server started without the key returns 500 on `/ask`; that error path has no test, and T038 fails against such a server.
+- **Not covered by tests:** the `/upload` rate limit, and the 502 and 504 responses of `/ask` (LLM service error and timeout), which would need a failing or slow upstream.
 - Tests run against whatever server is at `localhost:8000` — start it before running pytest.
 - **To skip rate limit tests** in the main suite run: `.venv\Scripts\python.exe -m pytest tests\ --ignore=tests\test_z_rate_limit.py -v` (already the recommended command above).

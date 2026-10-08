@@ -12,7 +12,7 @@ T010,/upload,Five sequential uploads same session,"5x upload, same UUID",All 200
 T011,/upload,Empty file (0 bytes),file=empty.pdf (0 B),422 · size guard fires before PyMuPDF,PASS
 T012,/upload,Corrupt 1-byte file,"file=corrupt.pdf (1 B, 0x00)",422 · size guard fires before PyMuPDF,PASS
 T013,/upload,Normal size PDF,file=normal.pdf (~few KB),200 · processed,PASS
-T014,/upload,File over the size limit,file=big.pdf (just over MAX_FILE_SIZE_MB),413 · file too large,PASS
+T014,/upload,File over the size limit,in-memory payload just over MAX_FILE_SIZE_MB,413 · file too large,PASS
 T015,/upload,DELETED — merged into T014,—,—,DELETED
 T016,/upload,No session_id field,multipart with no session_id key,422 · validation error,PASS
 T017,/upload,Empty string session_id,session_id="",4xx · rejected,PASS
@@ -33,7 +33,7 @@ T031,Integration,PDF upload then relevant answer,upload text-PDF then ask about 
 T032,Integration,Image upload then OCR then answer,upload text-PNG then ask about printed text,200 · answer reflects OCR'd text,PASS
 T033,Integration,Two sequential uploads then ask,upload PDF then upload PNG then ask,200 · both uploads succeed · ask returns answer (last file indexed),PASS
 T034,Integration,Session isolation — two sessions,session A asks about session B's unique term,A's answer does not mention B's content,PASS
-T035,Integration,3 sequential questions same session,upload then ask 3 different questions,All 200 · no state bleed,PASS
+T035,Integration,3 sequential questions same session,upload then ask 3 different questions,All 200 · non-empty answers,PASS
 T036,Integration,Unknown UUID returns error (simulates post-restart state),ask with fresh UUID never used for upload,4xx · session not found,PASS
 T037,Integration,Concurrent uploads different sessions,2 threads upload simultaneously,Both 200,PASS
 T038,Integration,OpenRouter key configured — answer returned,OPENROUTER_API_KEY set then upload then ask,200 · non-empty answer,PASS
@@ -58,8 +58,8 @@ MUT11,Mutation,Numbers and symbols only question,question="42 + 3.14 = ???",No 5
 MUT12,Mutation,Extra unexpected field in upload multipart,"session_id, file, unexpected_field=surprise",No 500 — extra field ignored or rejected,PASS
 T039,Rate Limit,Single request — within limit,1 POST /ask,200 · not throttled,PASS
 T039b,Integration,LLM response format — no leaked error keys,upload then ask → inspect response JSON,200 · 'answer' present · no 'traceback'/'exception' key,PASS
-T040,Rate Limit,Burst above rate limit,35 sequential /ask requests within window,429 seen before request 36,PASS
-T041,Rate Limit,Recovery after cooldown,burst triggers 429 then wait 62s then 1 more request,200 · limit reset,PASS
+T040,Rate Limit,Burst above rate limit,35 sequential /ask requests within window,429 seen before request 36,PASS or SKIP (skips itself when the limit is not reached — see TESTING.md)
+T041,Rate Limit,Recovery after cooldown,burst triggers 429 then wait 62s then 1 more request,200 · limit reset,PASS or SKIP (skips itself when the limit is not reached — see TESTING.md)
 T042,Unit,Extractor: PDF text layer → PyMuPDF,extract_pdf(text_pdf),str · len > 0,PASS
 T043,Unit,Extractor: blank PDF — no text,extract_pdf(blank_pdf),empty string or known exception — not crash,CLARIFY
 T044,Unit,Extractor: PNG image → EasyOCR,extract_image(text.png),str · len > 0,PASS

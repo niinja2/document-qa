@@ -415,3 +415,6 @@ so the size guard rejected them before the type check ran. The payloads are now 
 - Mutation tests renumbered from CAT-05 to CAT-12; CAT-05 was used twice.
 - `store.save` type hint corrected: `chunks: list[dict]`.
 - Tests without IDs are now listed in `tests/TESTING.md` and `tests/test_spec.csv`.
+- T004, T006, T017, T036 and the supported-vs-unsupported test asserted `>= 400`, which a 500 would pass. They now assert a 4xx.
+- T035 asserts non-empty answers; the chunk-size test asserts `<= CHUNK_SIZE` exactly (it allowed 5 extra words).
+- Unused `UPLOAD_PROBE` removed from the rate limit tests; the `/upload` rate limit has no test.

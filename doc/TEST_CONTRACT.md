@@ -31,7 +31,6 @@ Base URL: `http://localhost:8000`
 
 - Uploading with the same `session_id` overwrites the previous session
 - Text is chunked at 350 words with 50-word overlap (configurable via env)
-- TOP_K = 5 chunks retrieved per question (configurable via env)
 
 ---
 
@@ -59,6 +58,10 @@ Base URL: `http://localhost:8000`
 | `500` | Missing LLM configuration (`OPENROUTER_API_KEY` or `OPENROUTER_MODEL`) |
 | `502` | LLM service error or unreachable |
 | `504` | LLM service timed out |
+
+**Behavior:**
+
+- TOP_K = 5 chunks retrieved per question (configurable via env)
 
 **Session behavior:**
 

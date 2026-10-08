@@ -94,8 +94,8 @@ class TestEndToEnd:
         )
 
     def test_T035_multiple_questions_same_session(self, client, text_pdf_bytes):
-        """T035 — Three sequential questions on the same session return distinct answers
-        and none of them 500.
+        """T035 — Three sequential questions on the same session all return 200
+        with a non-empty answer.
         """
         sid = str(uuid.uuid4())
         upload_file(client, sid, text_pdf_bytes, "doc.pdf")
@@ -109,8 +109,7 @@ class TestEndToEnd:
             r = ask(client, sid, q)
             assert r.status_code == 200, f"Question {q!r} returned {r.status_code}"
             answers.append(r.json().get("answer", ""))
-        # At least some answers should differ (non-trivial LLM responses)
-        assert len(set(answers)) > 1 or all(len(a) > 0 for a in answers)
+        assert all(len(a) > 0 for a in answers)
 
     def test_T036_unknown_session_returns_error(self, client, fresh_session_id):
         """T036 — Ask with an unknown UUID → 4xx (session not found).
@@ -119,7 +118,7 @@ class TestEndToEnd:
         A real restart test would require restarting the server process.
         """
         r = ask(client, fresh_session_id, "What is this document about?")
-        assert r.status_code >= 400
+        assert 400 <= r.status_code < 500
 
     def test_T037_concurrent_uploads_both_succeed(self, client, text_pdf_bytes):
         """T037 — Two concurrent uploads to different sessions both return 200.
@@ -165,8 +164,8 @@ class TestEndToEnd:
     def test_T039b_llm_response_format_no_leaked_errors(self, client, text_pdf_bytes):
         """T039b — /ask response must be well-formed JSON with no leaked internal error keys.
 
-        Rubric item: AI/LLM error handling — the API must never expose tracebacks,
-        raw exception messages, or internal keys (e.g. 'traceback', 'detail' on 200).
+        Rubric item: AI/LLM error handling. The test checks that a 200 response has an
+        'answer' key and no 'traceback' or 'exception' key.
         """
         sid = str(uuid.uuid4())
         upload_file(client, sid, text_pdf_bytes, "doc.pdf")

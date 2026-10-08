@@ -3,8 +3,9 @@ Rate limiting tests — CAT-08 (slowapi)
 Normal / burst above limit / post-cooldown recovery.
 
 Run against the server with DEFAULT rate limits (no env var overrides):
-  /upload — 10 requests/minute
-  /ask    — 30 requests/minute
+  /ask — 30 requests/minute
+
+Only the /ask limit is tested; the /upload limit (10 requests/minute) has no test.
 """
 import time
 import uuid
@@ -14,9 +15,8 @@ import pytest
 from conftest import upload_file, ask
 
 # Sequential probe: send requests one by one until 429 appears.
-# 35 is just above the 30/min ask limit; 12 is just above the 10/min upload limit.
-ASK_PROBE    = 35
-UPLOAD_PROBE = 12
+# 35 is just above the 30/min ask limit.
+ASK_PROBE = 35
 RATE_WINDOW_SECONDS = 62  # just over 1 minute for the window to reset
 
 
