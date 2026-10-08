@@ -1,5 +1,6 @@
 """
-Unit tests for the RAG pipeline components — CAT-09 and CAT-10.
+Unit tests for the RAG pipeline components — CAT-09 (extraction) and CAT-10 (chunker),
+plus embedder and retriever tests, which have no category or test IDs.
 Tests: ingestion/extractor.py, pipeline/chunker.py, pipeline/embedder.py, pipeline/retriever.py
 
 Imports assume the project root is on sys.path (tests/pytest.ini sets
@@ -99,14 +100,10 @@ class TestChunker:
         from pipeline.chunker import chunk_text
         self.chunk_text = chunk_text
 
-    def _text(self, chunk):
-        """Extract text from a chunk dict or plain string."""
-        return chunk["text"] if isinstance(chunk, dict) else chunk
-
     def test_T046_empty_string(self):
-        """T046 — Empty string → empty list (or single empty-text dict), no crash."""
+        """T046 — Empty string → empty list, no crash."""
         result = self.chunk_text("")
-        assert result == [] or (len(result) == 1 and self._text(result[0]).strip() == "")
+        assert result == []
 
     def test_T047_under_limit(self):
         """T047 — CHUNK_STEP - 1 words → exactly 1 chunk."""
@@ -123,7 +120,7 @@ class TestChunker:
         text = make_text(CHUNK_STEP + 1)
         result = self.chunk_text(text)
         assert len(result) == 2, f"Expected 2 chunks, got {len(result)}"
-        second = self._text(result[1])
+        second = result[1]
         expected_start = f"word{CHUNK_STEP}"
         assert second.startswith(expected_start), (
             f"Overlap wrong: chunk[1] starts with {second[:20]!r}, expected {expected_start!r}"
@@ -143,7 +140,7 @@ class TestChunker:
         """No chunk may exceed CHUNK_SIZE words."""
         result = self.chunk_text(make_text(2000))
         for i, chunk in enumerate(result):
-            word_count = len(self._text(chunk).split())
+            word_count = len(chunk.split())
             assert word_count <= CHUNK_SIZE, (
                 f"Chunk {i} has {word_count} words, exceeds CHUNK_SIZE={CHUNK_SIZE}"
             )

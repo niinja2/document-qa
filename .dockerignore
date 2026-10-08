@@ -5,3 +5,9 @@ __pycache__/
 .git/
 .idea/
 app.log
+
+# Local notes and large test files, not part of the repo
+49mb.png
+concurency.txt
+doc/CONCURRENCY_NOTES.md
+test_docs/big.pdf

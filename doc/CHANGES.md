@@ -310,7 +310,7 @@ Two-service Docker setup: `api` (FastAPI, port 8000) and `frontend` (Streamlit, 
 - EasyOCR weights pre-downloaded during `docker build` as well (added later)
 - `.env` passed at runtime via `env_file` — secrets never baked into the image
 - `API_URL=http://api:8000` injected into `frontend` service so Streamlit reaches the API by Docker service name, not localhost
-- `.dockerignore` excludes `.env`, `.venv/`, `__pycache__`, `.git/`, `.idea/`
+- `.dockerignore` excludes `.env`, `.venv/`, `__pycache__`, `*.pyc`, `.git/`, `.idea/`, `app.log`, and the local files listed in `.gitignore`
 
 Build and run: `docker-compose up --build`
 
@@ -418,3 +418,4 @@ so the size guard rejected them before the type check ran. The payloads are now 
 - T004, T006, T017, T036 and the supported-vs-unsupported test asserted `>= 400`, which a 500 would pass. They now assert a 4xx.
 - T035 asserts non-empty answers; the chunk-size test asserts `<= CHUNK_SIZE` exactly (it allowed 5 extra words).
 - Unused `UPLOAD_PROBE` removed from the rate limit tests; the `/upload` rate limit has no test.
+- T005, T011, T012 and MUT04 assert exactly 422, as the test docs say; the shared helper accepted any 4xx.

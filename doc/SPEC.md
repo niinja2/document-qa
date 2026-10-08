@@ -27,7 +27,7 @@ store.py → save(UUID, chunks, index)
     │
 FastAPI → {"status": "ok"}
     │
-Streamlit → "upload done"
+Streamlit → "Document uploaded successfully."
 ```
 
 ### POST /ask
@@ -80,8 +80,8 @@ extractor.py(file_path)
 - `POST /upload` — accepts one file + session UUID (multipart form). Saves to temp, extracts text, removes temp file. Chunks text, embeds chunks, builds FAISS index, stores in RAM.
 - `POST /ask` — accepts session UUID + question (form). Embeds question, retrieves top-5 chunks via FAISS, sends labeled context to LLM, returns answer.
 - Both handlers are plain `def` functions, so FastAPI runs them on its threadpool.
-- `/upload` errors: 413 if the file exceeds `MAX_FILE_SIZE_MB`; 422 if it is under 100 bytes, of an unsupported type, fails extraction, or yields no text.
-- `/ask` errors: 404 unknown session; 504 LLM timeout; 502 LLM connection or HTTP error; 500 missing LLM configuration.
+- `/upload` errors: 413 if the file exceeds `MAX_FILE_SIZE_MB`; 422 if a form field is missing, or the file is under 100 bytes, of an unsupported type, fails extraction, or yields no text; 429 rate limit.
+- `/ask` errors: 404 unknown session; 422 missing form field; 429 rate limit; 504 LLM timeout; 502 LLM connection or HTTP error; 500 missing LLM configuration.
 - Startup warmup — embedding model and EasyOCR reader pre-loaded on server start via `lifespan`.
 - Rate limiting via slowapi — `RATE_LIMIT_UPLOAD` and `RATE_LIMIT_ASK` (configured in `.env`). Returns HTTP 429 if exceeded.
 - JSON structured logging to terminal and log file (default: system temp dir, overridable via `LOG_FILE` env var).

@@ -12,12 +12,12 @@ from conftest import upload_file
 from config import MAX_FILE_SIZE_MB
 
 
-def _upload_expect_4xx(client, *args, **kwargs):
-    """Upload and assert 4xx. Treats a connection drop (server crash) as a failure."""
+def _upload_expect_422(client, *args, **kwargs):
+    """Upload and assert 422. Treats a connection drop (server crash) as a failure."""
     try:
         r = upload_file(client, *args, **kwargs)
-        assert 400 <= r.status_code < 500, (
-            f"Expected 4xx but got {r.status_code} — server should return a clean error"
+        assert r.status_code == 422, (
+            f"Expected 422 but got {r.status_code} — server should return a clean error"
         )
     except httpx.ReadError:
         pytest.fail(
@@ -52,7 +52,7 @@ class TestFileType:
 
     def test_T005_docx_rejected(self, client, session_id):
         """T005 — .docx (not in spec) → 422. Bug if server crashes instead."""
-        _upload_expect_4xx(
+        _upload_expect_422(
             client, session_id, b"PK\x03\x04fakecontent" + b"\x00" * 200, "doc.docx",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
@@ -63,7 +63,7 @@ class TestFileType:
         assert 400 <= r.status_code < 500
 
     def test_supported_and_unsupported_produce_different_status(
-        self, client, text_pdf_bytes, text_png_bytes
+        self, client, text_pdf_bytes
     ):
         """Opposite inputs must yield different outcomes: supported≠unsupported."""
         sid_good = str(uuid.uuid4())
@@ -107,12 +107,12 @@ class TestFileCount:
 class TestFileSize:
 
     def test_T011_empty_file(self, client, session_id):
-        """T011 — 0-byte file → 4xx (rejected by the size guard). Bug if server 500s."""
-        _upload_expect_4xx(client, session_id, b"", "empty.pdf")
+        """T011 — 0-byte file → 422 (rejected by the size guard). Bug if server 500s."""
+        _upload_expect_422(client, session_id, b"", "empty.pdf")
 
     def test_T012_corrupt_one_byte(self, client, session_id):
-        """T012 — 1-byte corrupt file → 4xx (rejected by the size guard). Bug if server crashes."""
-        _upload_expect_4xx(client, session_id, b"\x00", "corrupt.pdf")
+        """T012 — 1-byte corrupt file → 422 (rejected by the size guard). Bug if server crashes."""
+        _upload_expect_422(client, session_id, b"\x00", "corrupt.pdf")
 
     def test_T013_normal_size(self, client, session_id, text_pdf_bytes):
         """T013 — Normal PDF → 200."""
@@ -212,10 +212,10 @@ class TestMutations:
     def test_MUT04_valid_header_truncated_body(self, client, session_id):
         """MUT04 — File starts with valid %PDF header but body is truncated garbage.
 
-        Passes the size guard (>= 100 bytes) but should fail extraction gracefully → 4xx not 500.
+        Passes the size guard (>= 100 bytes) but should fail extraction gracefully → 422 not 500.
         """
         truncated = b"%PDF-1.4\n" + b"\x00\xff" * 100
-        _upload_expect_4xx(client, session_id, truncated, "truncated.pdf")
+        _upload_expect_422(client, session_id, truncated, "truncated.pdf")
 
     # ── Session ID mutations ──
 
