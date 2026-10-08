@@ -48,17 +48,11 @@ class TestExtractor:
         assert len(result.strip()) > 0
 
     def test_T043_blank_pdf_handled_gracefully(self, blank_pdf_path):
-        """T043 — Blank PDF (no text, no images) → empty string or known exception, not crash."""
+        """T043 — Blank PDF (no text, no images) → empty string, no exception."""
         from ingestion.extractor import extract_pdf
-        try:
-            result = extract_pdf(blank_pdf_path)
-            # If it returns, must be a string (possibly empty)
-            assert isinstance(result, str)
-        except Exception as e:
-            # Any raised exception must not be an unhandled AttributeError / TypeError
-            assert not isinstance(e, (AttributeError, TypeError, IndexError)), (
-                f"Blank PDF raised unexpected low-level error: {e}"
-            )
+        result = extract_pdf(blank_pdf_path)
+        assert isinstance(result, str)
+        assert result.strip() == ""
 
     def test_T044_image_file_uses_ocr(self, png_path):
         """T044 — PNG image → EasyOCR path → non-empty string extracted."""
@@ -131,6 +125,7 @@ class TestChunker:
         import math
         text = make_text(10_000)
         result = self.chunk_text(text)
+        # The chunker starts a chunk at every multiple of CHUNK_STEP below the word count.
         expected = math.ceil(10_000 / CHUNK_STEP)
         assert len(result) == expected, (
             f"Expected {expected} chunks for 10 000 words, got {len(result)}"

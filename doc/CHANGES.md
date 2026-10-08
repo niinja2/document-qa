@@ -419,3 +419,4 @@ so the size guard rejected them before the type check ran. The payloads are now 
 - T035 asserts non-empty answers; the chunk-size test asserts `<= CHUNK_SIZE` exactly (it allowed 5 extra words).
 - Unused `UPLOAD_PROBE` removed from the rate limit tests; the `/upload` rate limit has no test.
 - T005, T011, T012 and MUT04 assert exactly 422, as the test docs say; the shared helper accepted any 4xx.
+- MUT01 asserts 422 (it asserted "not 500"); T043 asserts an empty string for a blank PDF (it accepted most exceptions).

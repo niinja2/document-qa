@@ -41,7 +41,7 @@ OPENROUTER_API_KEY=your_key_here
 OPENROUTER_MODEL=mistralai/ministral-3b-2410
 ```
 
-> **Note:** a system-level `OPENROUTER_API_KEY` environment variable takes precedence over `.env` (`load_dotenv` does not override existing variables). If `/ask` returns 502 and the log shows a 401 from OpenRouter, check for a stale variable in your environment. This does not affect the Docker setup, where the containers read only `.env`.
+> **Note:** a system-level `OPENROUTER_API_KEY` environment variable takes precedence over `.env` (`load_dotenv` does not override existing variables). If `/ask` returns 502 and the log shows a 401 from OpenRouter, check for a stale variable in your environment. This does not affect the Docker setup, where the containers do not see variables from your system and take the key from `.env`.
 
 Start the API:
 
@@ -140,7 +140,7 @@ Error codes: `404` session not found (upload first), `422` missing field, `429` 
 | PDF (scanned / embedded images) | PyMuPDF + EasyOCR |
 | PNG, JPG, JPEG, TIFF, BMP | EasyOCR |
 
-File routing uses magic bytes (`%PDF`), not the file extension — a PDF sent with a `.png` extension is handled correctly.
+PDFs are detected by magic bytes (`%PDF`), not by the file extension — a PDF sent with a `.png` extension is handled correctly. Images are routed by extension.
 
 ---
 
@@ -180,7 +180,7 @@ Sessions are stored in RAM, keyed by UUID. One FAISS index per session. No persi
 - **FAISS `IndexFlatIP`** — exact cosine search, no approximation needed at demo scale
 - **OpenRouter** — model-agnostic; swap the model via `.env` without code changes
 - **Single file per session** — multi-file upload was implemented then reverted: large documents dominated the FAISS index, causing the retriever to ignore smaller documents entirely
-- **Magic bytes routing** — more reliable than trusting file extensions or `Content-Type` headers
+- **Magic bytes for PDF detection** — more reliable than trusting file extensions or `Content-Type` headers
 
 ### LLM prompt
 
@@ -251,6 +251,7 @@ Key variables:
 | `TOP_K` | 5 | Chunks retrieved per question |
 | `RATE_LIMIT_UPLOAD` | 10/minute | Per-IP upload rate limit |
 | `RATE_LIMIT_ASK` | 30/minute | Per-IP ask rate limit |
+| `LOG_FILE` | `{tempdir}/app.log` | Log file path |
 
 Rate limits are keyed by client IP. Requests made through the Streamlit UI all reach the API from the frontend process, so UI users share one limit.
 

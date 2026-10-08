@@ -182,14 +182,14 @@ class TestMutations:
     # ── File content/extension mismatch ──
 
     def test_MUT01_pdf_extension_image_bytes(self, client, session_id, text_png_bytes):
-        """MUT01 — PNG bytes sent with .pdf filename → no 500.
+        """MUT01 — PNG bytes sent with .pdf filename → 422.
 
-        The server routes by magic bytes first, then by extension: these bytes are not
-        a PDF and the extension is not an image extension, so the file is rejected
-        with 422. The assertion is the weaker "not 500" — the key check is no crash.
+        The server detects PDFs by magic bytes first, then routes images by extension:
+        these bytes are not a PDF and the extension is not an image extension, so the
+        file is rejected with 422.
         """
         r = upload_file(client, session_id, text_png_bytes, "fake.pdf", "application/pdf")
-        assert r.status_code != 500
+        assert r.status_code == 422
 
     def test_MUT02_image_extension_pdf_bytes(self, client, session_id, text_pdf_bytes):
         """MUT02 — PDF bytes sent with .png filename → no 500.

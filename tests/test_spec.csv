@@ -44,7 +44,7 @@ TC04,Cascade,Image (OCR) then PDF upload then ask,upload PNG then upload PDF the
 TC05,Cascade,Failed upload then recovery upload then ask,upload empty.pdf (422) then upload valid PDF then ask,200 · session recovers after initial failure,PASS
 TC06,Cascade,Ask (404) then upload then ask (no broken state),ask on fresh UUID (404) then upload then ask,200 · earlier 404 left no broken state,PASS
 TC07,Cascade,Mixed-type session then off-topic question,upload PDF + PNG then ask about Mars GDP,200 · non-empty answer (wording not asserted),PASS
-MUT01,Mutation,PNG bytes sent with .pdf filename,"PNG bytes, filename=fake.pdf, content-type=application/pdf",No 500 — server routes by magic bytes then extension (rejected with 422),PASS
+MUT01,Mutation,PNG bytes sent with .pdf filename,"PNG bytes, filename=fake.pdf, content-type=application/pdf",422 — not a PDF by magic bytes and not an image extension,PASS
 MUT02,Mutation,PDF bytes sent with .png filename,"PDF bytes, filename=fake.png, content-type=image/png",No 500 — server routes by magic bytes (PDF path),PASS
 MUT03,Mutation,Valid PDF bytes but Content-Type claims image/png,"PDF bytes, correct filename, wrong content-type",No 500 — reveals if server trusts Content-Type or inspects bytes,PASS
 MUT04,Mutation,Valid %PDF header but truncated body,"%PDF-1.4 + garbage bytes (>=100B passes size guard)",422 · extraction fails gracefully,PASS
@@ -61,7 +61,7 @@ T039b,Integration,LLM response format — no leaked error keys,upload then ask �
 T040,Rate Limit,Burst above rate limit,35 sequential /ask requests within window,429 seen before request 36,PASS or SKIP (skips itself when the limit is not reached — see TESTING.md)
 T041,Rate Limit,Recovery after cooldown,burst triggers 429 then wait 62s then 1 more request,200 · limit reset,PASS or SKIP (skips itself when the limit is not reached — see TESTING.md)
 T042,Unit,Extractor: PDF text layer → PyMuPDF,extract_pdf(text_pdf),str · len > 0,PASS
-T043,Unit,Extractor: blank PDF — no text,extract_pdf(blank_pdf),empty string or known exception — not crash,CLARIFY
+T043,Unit,Extractor: blank PDF — no text,extract_pdf(blank_pdf),empty string · no exception,PASS
 T044,Unit,Extractor: PNG image → EasyOCR,extract_image(text.png),str · len > 0,PASS
 T045,Unit,DELETED — duplicate label,—,—,DELETED
 T046,Unit,Chunker: empty string,chunk_text(""),[] — no crash,PASS

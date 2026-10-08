@@ -161,7 +161,7 @@ Then run only the rate limit file:
 
 | ID | Description |
 |----|-------------|
-| MUT01 | PNG bytes sent with .pdf filename → not 500 |
+| MUT01 | PNG bytes sent with .pdf filename → 422 |
 | MUT02 | PDF bytes sent with .png filename → not 500 |
 | MUT03 | Valid PDF bytes but Content-Type claims image/png → not 500 |
 | MUT04 | Valid %PDF header but truncated body → 422, graceful error |
@@ -193,7 +193,7 @@ Then run only the rate limit file:
 | ID | Description |
 |----|-------------|
 | T042 | PDF text layer extraction → non-empty string |
-| T043 | Blank PDF extraction → empty string or known exception, not crash |
+| T043 | Blank PDF extraction → empty string, no exception |
 | T044 | PNG image extraction via EasyOCR → non-empty string |
 | T046 | Chunker: empty string → empty list |
 | T047 | Chunker: CHUNK_STEP − 1 words (299 at defaults) → 1 chunk |
